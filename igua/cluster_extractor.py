@@ -101,7 +101,7 @@ def smart_open(path: Path, mode: str = "rb") -> BinaryIO:
 
         return reader  # type: ignore
     else:
-        reader = io.BufferedReader(open(path, "rb"))
+        reader = open(path, "rb")
         if reader.peek().startswith(_GZIP_MAGIC):
             reader = gzip.GzipFile(mode="rb", fileobj=reader)  # type: ignore
         return reader  # type: ignore
@@ -241,42 +241,36 @@ class GFFIndex:
         """
         return gene_id in self._index
 
+def read_fasta(file_path: Path) -> Iterable[Tuple[str, str]]:
+    """Stream FASTA records from file.
 
-class FastaReader:
-    """Streaming FASTA reader for memory-efficient sequence loading."""
+    Handles both plain and gzip-compressed FASTA files.
 
-    @staticmethod
-    def read_fasta(file_path: Path) -> Iterable[Tuple[str, str]]:
-        """Stream FASTA records from file.
+    Args:
+        file_path: Path to FASTA file (.fasta, .fa, .fna, or .gz).
 
-        Handles both plain and gzip-compressed FASTA files.
+    Yields:
+        Tuple of (sequence_id, sequence_string).
+    """
+    with smart_open(file_path) as reader:
+        name = None
+        sequence = []
 
-        Args:
-            file_path: Path to FASTA file (.fasta, .fa, .fna, or .gz).
+        for line in io.TextIOWrapper(reader, encoding="utf-8"):
+            line = line.strip()
+            if not line:
+                continue
 
-        Yields:
-            Tuple of (sequence_id, sequence_string).
-        """
-        with smart_open(file_path) as reader:
-            name = None
-            sequence = []
+            if line.startswith(">"):
+                if name is not None:
+                    yield name, "".join(sequence)
+                name = line[1:].split()[0]
+                sequence = []
+            else:
+                sequence.append(line)
 
-            for line in io.TextIOWrapper(reader, encoding="utf-8"):
-                line = line.strip()
-                if not line:
-                    continue
-
-                if line.startswith(">"):
-                    if name is not None:
-                        yield name, "".join(sequence)
-                    name = line[1:].split()[0]
-                    sequence = []
-                else:
-                    sequence.append(line)
-
-            if name is not None:
-                yield name, "".join(sequence)
-
+        if name is not None:
+            yield name, "".join(sequence)
 
 class ProteinIndex:
     """Lazy-loading protein sequence index for efficient lookup.
@@ -927,7 +921,7 @@ class SequenceExtractor:
 
         results = []
 
-        for seq_id, sequence in FastaReader.read_fasta(genomic_fasta):
+        for seq_id, sequence in read_fasta(genomic_fasta):
             if seq_id not in contig_groups:
                 continue
 
@@ -1221,7 +1215,7 @@ class GeneClusterExtractor:
             verbose: Enable verbose logging (default: False).
         """
         self.progress = progress
-        self.console = progress.console if progress else Console()
+        self.console = progress.console if progress else Console(quiet=True)
         self.verbose = verbose
         self._extractor = SequenceExtractor(self.console, verbose)
 
@@ -1245,35 +1239,27 @@ class GeneClusterExtractor:
 
         resources = GenomeResources(context, self.console)
 
-        try:
-            self.console.print(f"[bold blue]{'Building':>12}[/] cluster coordinates")
-            coordinates = resources.coordinates
+        self.console.print(f"[bold blue]{'Building':>12}[/] cluster coordinates")
+        coordinates = resources.coordinates
 
-            valid_count = sum(1 for c in coordinates if c.valid)
-            self.console.print(
-                f"[bold green]{'Validated':>12}[/] {valid_count}/{len(coordinates)} clusters"
-            )
+        valid_count = sum(1 for c in coordinates if c.valid)
+        self.console.print(
+            f"[bold green]{'Validated':>12}[/] {valid_count}/{len(coordinates)} clusters"
+        )
 
-            self.console.print(f"[bold blue]{'Extracting':>12}[/] cluster sequences")
-            results = self._extractor.extract_genomic_sequences(
-                coordinates, context.genomic_fasta, output_file
-            )
+        self.console.print(f"[bold blue]{'Extracting':>12}[/] cluster sequences")
+        results = self._extractor.extract_genomic_sequences(
+            coordinates, context.genomic_fasta, output_file
+        )
 
-            self.console.print(
-                f"[bold green]{'Extracted':>12}[/] {len(results)} gene clusters for [bold cyan]{context.genome_id}[/]"
-            )
+        self.console.print(
+            f"[bold green]{'Extracted':>12}[/] {len(results)} gene clusters for [bold cyan]{context.genome_id}[/]"
+        )
 
-            return coordinates
+        resources.cleanup()
+        gc.collect()
+        return coordinates
 
-        except Exception as e:
-            self.console.print(
-                f"[bold red]{'Error':>12}[/] Fatal error for {context.genome_id}: {e}"
-            )
-            traceback.print_exc()
-            return []
-        finally:
-            resources.cleanup()
-            gc.collect()
 
     def extract_proteins_from_metadata(
         self,

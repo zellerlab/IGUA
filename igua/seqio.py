@@ -238,20 +238,10 @@ class FastaGFFDataset(BaseDataset):
             f"[bold blue]{'Using':>12}[/] cluster metadata file: [magenta]{self.cluster_metadata}[/]"
         )
 
-        try:
-            df = pl.read_csv(self.cluster_metadata, separator="\t")
+        df = pl.read_csv(self.cluster_metadata, separator="\t")
+        self._metadata_cache_path = output.parent / f".{output.stem}_metadata.json"
+        return self._extract_and_cache_metadata(progress, df, output, extractor)
 
-            self._metadata_cache_path = output.parent / f".{output.stem}_metadata.json"
-
-            return self._extract_and_cache_metadata(progress, df, output, extractor)
-
-        except Exception as e:
-            progress.console.print(
-                f"[bold red]{'Error':>12}[/] reading cluster metadata: {e}"
-            )
-            return pd.DataFrame(
-                columns=["cluster_id", "cluster_length", "filename"]
-            ).set_index("cluster_id")
 
     def extract_proteins(
         self,
