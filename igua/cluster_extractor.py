@@ -580,6 +580,15 @@ class GenomeResources:
         self._coordinates_cache: Optional[List[SystemCoordinates]] = None
         self._tar_cache = TarCache()
 
+    def __enter__(self):
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager and cleanup tar handles."""
+        self._tar_cache.cleanup()
+        return False
+
     @property
     def systems_df(self) -> pl.DataFrame:
         """Load and filter clusters TSV (lazy-loaded, cached).
@@ -841,15 +850,6 @@ class GenomeResources:
             valid=False,
             error_msg=error,
         )
-
-    def cleanup(self):
-        """Clean up resources to enable garbage collection."""
-        self._systems_df = None
-        self._genes_df = None
-        self._protein_idx = None
-        self._gff_db = None
-        self._coordinates_cache = None
-        self._tar_cache.cleanup()
 
 
 class SequenceExtractor:
@@ -1224,27 +1224,24 @@ class GeneClusterExtractor:
             self._log_missing_files(context)
             return []
 
-        resources = GenomeResources(context, self.console)
+        with GenomeResources(context, self.console) as resources:
+            self.console.print(f"[bold blue]{'Building':>12}[/] cluster coordinates")
+            coordinates = resources.coordinates
 
-        self.console.print(f"[bold blue]{'Building':>12}[/] cluster coordinates")
-        coordinates = resources.coordinates
+            valid_count = sum(1 for c in coordinates if c.valid)
+            self.console.print(
+                f"[bold green]{'Validated':>12}[/] {valid_count}/{len(coordinates)} clusters"
+            )
 
-        valid_count = sum(1 for c in coordinates if c.valid)
-        self.console.print(
-            f"[bold green]{'Validated':>12}[/] {valid_count}/{len(coordinates)} clusters"
-        )
+            self.console.print(f"[bold blue]{'Extracting':>12}[/] cluster sequences")
+            results = self._extractor.extract_genomic_sequences(
+                coordinates, context.genomic_fasta, output_file, tar_cache=resources._tar_cache
+            )
 
-        self.console.print(f"[bold blue]{'Extracting':>12}[/] cluster sequences")
-        results = self._extractor.extract_genomic_sequences(
-            coordinates, context.genomic_fasta, output_file, tar_cache=resources._tar_cache
-        )
+            self.console.print(
+                f"[bold green]{'Extracted':>12}[/] {len(results)} gene clusters for [bold cyan]{context.genome_id}[/]"
+            )
 
-        self.console.print(
-            f"[bold green]{'Extracted':>12}[/] {len(results)} gene clusters for [bold cyan]{context.genome_id}[/]"
-        )
-
-        resources.cleanup()
-        gc.collect()
         return coordinates
 
 
@@ -1308,7 +1305,6 @@ class GeneClusterExtractor:
             return {}
         finally:
             tar_cache.cleanup()
-            gc.collect()
 
     def _log_missing_files(self, context: GenomeContext):
         """Log missing files for a context.
