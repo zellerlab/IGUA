@@ -241,7 +241,7 @@ class GFFIndex:
         """
         return gene_id in self._index
 
-def read_fasta(file_path: Path) -> Iterable[Tuple[str, str]]:
+def read_fasta(file_path: Path) -> Iterable[Tuple[str, str, str]]:
     """Stream FASTA records from file.
 
     Handles both plain and gzip-compressed FASTA files.
@@ -250,10 +250,11 @@ def read_fasta(file_path: Path) -> Iterable[Tuple[str, str]]:
         file_path: Path to FASTA file (.fasta, .fa, .fna, or .gz).
 
     Yields:
-        Tuple of (sequence_id, sequence_string).
+        Tuple of (sequence_id, full_header, sequence_string).
     """
     with smart_open(file_path) as reader:
         name = None
+        full_header = None
         sequence = []
 
         for line in io.TextIOWrapper(reader, encoding="utf-8"):
@@ -263,14 +264,15 @@ def read_fasta(file_path: Path) -> Iterable[Tuple[str, str]]:
 
             if line.startswith(">"):
                 if name is not None:
-                    yield name, "".join(sequence)
-                name = line[1:].split()[0]
+                    yield name, full_header, "".join(sequence)
+                full_header = line[1:]
+                name = full_header.split()[0]
                 sequence = []
             else:
                 sequence.append(line)
 
         if name is not None:
-            yield name, "".join(sequence)
+            yield name, full_header, "".join(sequence)
 
 class ProteinIndex:
     """Lazy-loading protein sequence index for efficient lookup.
@@ -301,33 +303,10 @@ class ProteinIndex:
         if self._loaded:
             return
 
-        with smart_open(self.path) as reader:
-            seq_id = None
-            full_header = None
-            sequence = []
-
-            for line in io.TextIOWrapper(reader, encoding="utf-8"):
-                line = line.strip()
-                if not line:
-                    continue
-
-                if line.startswith(">"):
-                    if seq_id is not None:
-                        if gene_ids is None or seq_id in gene_ids:
-                            self._sequences[seq_id] = "".join(sequence)
-                            self._headers[seq_id] = full_header
-
-                    full_header = line[1:]
-                    seq_id = full_header.split()[0]
-                    sequence = []
-                else:
-                    if gene_ids is None or (seq_id and seq_id in gene_ids):
-                        sequence.append(line)
-
-            if seq_id is not None:
-                if gene_ids is None or seq_id in gene_ids:
-                    self._sequences[seq_id] = "".join(sequence)
-                    self._headers[seq_id] = full_header
+        for seq_id, full_header, sequence in read_fasta(self.path):
+            if gene_ids is None or seq_id in gene_ids:
+                self._sequences[seq_id] = sequence
+                self._headers[seq_id] = full_header
 
         self._loaded = True
 
@@ -921,7 +900,7 @@ class SequenceExtractor:
 
         results = []
 
-        for seq_id, sequence in read_fasta(genomic_fasta):
+        for seq_id, _, sequence in read_fasta(genomic_fasta):
             if seq_id not in contig_groups:
                 continue
 
