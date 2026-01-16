@@ -52,9 +52,6 @@ class TarCache:
         self._cache.clear()
 
 
-_tar_cache = TarCache()
-
-
 def _parse_tar_path(path: Path) -> Union[tuple[Path, str], tuple[None, None]]:
     """Parse a path that might point inside a tar archive.
 
@@ -77,7 +74,7 @@ def _parse_tar_path(path: Path) -> Union[tuple[Path, str], tuple[None, None]]:
     return None, None
 
 
-def smart_open(path: Path, mode: str = "rb") -> BinaryIO:
+def smart_open(path: Path, mode: str = "rb", tar_cache: Optional[TarCache] = None) -> BinaryIO:
     """Open a file, handling both regular files and files inside tar archives.
 
     Uses caching for tar members to avoid repeated extraction.
@@ -86,6 +83,7 @@ def smart_open(path: Path, mode: str = "rb") -> BinaryIO:
     Args:
         path: Path to file (may be inside tar archive).
         mode: File mode ('rb' or 'rt').
+        tar_cache: Optional TarCache instance for caching tar members.
 
     Returns:
         File-like object (binary mode).
@@ -93,7 +91,9 @@ def smart_open(path: Path, mode: str = "rb") -> BinaryIO:
     tar_path, member_path = _parse_tar_path(path)
 
     if tar_path and member_path:
-        member_data = _tar_cache.get_member(tar_path, member_path)
+        if tar_cache is None:
+            tar_cache = TarCache()
+        member_data = tar_cache.get_member(tar_path, member_path)
         reader = io.BufferedReader(member_data)
 
         if reader.peek().startswith(_GZIP_MAGIC):
@@ -161,13 +161,15 @@ class GFFIndex:
         path: Path to the GFF file.
     """
 
-    def __init__(self, gff_path: Path):
+    def __init__(self, gff_path: Path, tar_cache: Optional[TarCache] = None):
         """Initialize GFF index.
 
         Args:
             gff_path: Path to the GFF file.
+            tar_cache: Optional TarCache instance for caching tar members.
         """
         self.path = gff_path
+        self._tar_cache = tar_cache
         self._index: Dict[str, Dict] = {}
         self._build_index()
 
@@ -178,7 +180,7 @@ class GFFIndex:
         ID, locus_tag, Name, gene, old_locus_tag, and protein_id attributes.
         Also creates prefixed variants (gene-, cds-) and underscore/tilde variants.
         """
-        with smart_open(self.path) as reader:
+        with smart_open(self.path, tar_cache=self._tar_cache) as reader:
             for line in io.TextIOWrapper(reader, encoding="utf-8"):
                 if line.startswith("#") or not line.strip():
                     continue
@@ -241,18 +243,19 @@ class GFFIndex:
         """
         return gene_id in self._index
 
-def read_fasta(file_path: Path) -> Iterable[Tuple[str, str, str]]:
+def read_fasta(file_path: Path, tar_cache: Optional[TarCache] = None) -> Iterable[Tuple[str, str, str]]:
     """Stream FASTA records from file.
 
     Handles both plain and gzip-compressed FASTA files.
 
     Args:
         file_path: Path to FASTA file (.fasta, .fa, .fna, or .gz).
+        tar_cache: Optional TarCache instance for caching tar members.
 
     Yields:
         Tuple of (sequence_id, full_header, sequence_string).
     """
-    with smart_open(file_path) as reader:
+    with smart_open(file_path, tar_cache=tar_cache) as reader:
         name = None
         full_header = None
         sequence = []
@@ -283,13 +286,15 @@ class ProteinIndex:
         path: Path to the protein FASTA file.
     """
 
-    def __init__(self, protein_fasta: Path):
+    def __init__(self, protein_fasta: Path, tar_cache: Optional[TarCache] = None):
         """Initialize protein index without loading sequences.
 
         Args:
             protein_fasta: Path to protein FASTA file.
+            tar_cache: Optional TarCache instance for caching tar members.
         """
         self.path = protein_fasta
+        self._tar_cache = tar_cache
         self._sequences: Dict[str, str] = {}
         self._headers: Dict[str, str] = {}
         self._loaded = False
@@ -303,7 +308,7 @@ class ProteinIndex:
         if self._loaded:
             return
 
-        for seq_id, full_header, sequence in read_fasta(self.path):
+        for seq_id, full_header, sequence in read_fasta(self.path, tar_cache=self._tar_cache):
             if gene_ids is None or seq_id in gene_ids:
                 self._sequences[seq_id] = sequence
                 self._headers[seq_id] = full_header
@@ -534,9 +539,10 @@ class GenomeContext:
 
     def __repr__(self):
         return (
-            f"GenomeContext(genome_id='{self.genome_id}', "
-            f"adapter={self.adapter.__class__.__name__}, "
-            f"files={5 - len(self.missing_files)}/5)"
+            f"<GenomeContext "
+            f"genome_id={self.genome_id!r} "
+            f"adapter={self.adapter.__class__.__name__} "
+            f"files={5 - len(self.missing_files)}/5>"
         )
 
     def is_valid(self) -> bool:
@@ -572,6 +578,7 @@ class GenomeResources:
         self._protein_idx: Optional[ProteinIndex] = None
         self._gff_db: Optional[GFFIndex] = None
         self._coordinates_cache: Optional[List[SystemCoordinates]] = None
+        self._tar_cache = TarCache()
 
     @property
     def systems_df(self) -> pl.DataFrame:
@@ -644,7 +651,7 @@ class GenomeResources:
             ProteinIndex instance.
         """
         if self._protein_idx is None:
-            self._protein_idx = ProteinIndex(self.context.protein_fasta)
+            self._protein_idx = ProteinIndex(self.context.protein_fasta, tar_cache=self._tar_cache)
         return self._protein_idx
 
     @property
@@ -655,7 +662,7 @@ class GenomeResources:
             GFFIndex instance.
         """
         if self._gff_db is None:
-            self._gff_db = GFFIndex(self.context.gff_file)
+            self._gff_db = GFFIndex(self.context.gff_file, tar_cache=self._tar_cache)
         return self._gff_db
 
     @property
@@ -842,8 +849,7 @@ class GenomeResources:
         self._protein_idx = None
         self._gff_db = None
         self._coordinates_cache = None
-
-        _tar_cache.cleanup()
+        self._tar_cache.cleanup()
 
 
 class SequenceExtractor:
@@ -869,6 +875,7 @@ class SequenceExtractor:
         coordinates: List[SystemCoordinates],
         genomic_fasta: Path,
         output_file: TextIO,
+        tar_cache: Optional[TarCache] = None,
     ) -> List[Tuple[str, int, str]]:
         """Extract genomic sequences by streaming FASTA file.
 
@@ -878,6 +885,7 @@ class SequenceExtractor:
             coordinates: List of system coordinates.
             genomic_fasta: Path to genomic FASTA file.
             output_file: Output file handle for writing sequences.
+            tar_cache: Optional TarCache instance for caching tar members.
 
         Returns:
             List of tuples (sys_id, sequence_length, fasta_file).
@@ -900,7 +908,7 @@ class SequenceExtractor:
 
         results = []
 
-        for seq_id, _, sequence in read_fasta(genomic_fasta):
+        for seq_id, _, sequence in read_fasta(genomic_fasta, tar_cache=tar_cache):
             if seq_id not in contig_groups:
                 continue
 
@@ -1228,7 +1236,7 @@ class GeneClusterExtractor:
 
         self.console.print(f"[bold blue]{'Extracting':>12}[/] cluster sequences")
         results = self._extractor.extract_genomic_sequences(
-            coordinates, context.genomic_fasta, output_file
+            coordinates, context.genomic_fasta, output_file, tar_cache=resources._tar_cache
         )
 
         self.console.print(
@@ -1278,8 +1286,9 @@ class GeneClusterExtractor:
 
         system_genes = {c.sys_id: c.genes for c in valid_coords}
 
+        tar_cache = TarCache()
         try:
-            protein_idx = ProteinIndex(protein_fasta)
+            protein_idx = ProteinIndex(protein_fasta, tar_cache=tar_cache)
             protein_sizes = self._extractor.extract_proteins_from_gene_list(
                 system_genes, protein_idx, protein_fasta, output_file
             )
@@ -1298,7 +1307,7 @@ class GeneClusterExtractor:
             traceback.print_exc()
             return {}
         finally:
-            _tar_cache.cleanup()
+            tar_cache.cleanup()
             gc.collect()
 
     def _log_missing_files(self, context: GenomeContext):
