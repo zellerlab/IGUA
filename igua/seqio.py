@@ -24,17 +24,20 @@ _GZIP_MAGIC = b"\x1f\x8b"
 
 
 class BaseDataset(abc.ABC):
-    """Base class for dataset extraction.
-    This class defines the basic structure and methods for extracting nucleotide and
-    protein sequences from various file formats. It serves as a base class for specific
-    dataset classes like GenBankDataset and GFFDataset.
-    """
+    """Base class for dataset extraction."""
+    
+    def __init__(self, inputs: typing.List[pathlib.Path]):
+        """Initialize dataset with input file paths.
+        
+        Args:
+            inputs: List of input file paths to process.
+        """
+        self.inputs = inputs
 
     @abc.abstractmethod
     def extract_sequences(
         self,
         progress: rich.progress.Progress,
-        inputs: typing.List[pathlib.Path],
         output: pathlib.Path,
     ) -> pd.DataFrame:
         pass
@@ -43,7 +46,6 @@ class BaseDataset(abc.ABC):
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        inputs: typing.List[pathlib.Path],
         output: pathlib.Path,
         representatives: typing.Container[str],
     ) -> typing.Dict[str, int]:
@@ -89,16 +91,19 @@ class BaseDataset(abc.ABC):
 
 
 class GenBankDataset(BaseDataset):
-    """GenBank dataset class.
-    This class is used to extract nucleotide and protein sequences from GenBank files.
-    It inherits from the BaseDataset class and implements the extract_sequences
-    and extract_proteins methods.
-    """
-
+    """GenBank dataset class."""
+    
+    def __init__(self, inputs: typing.List[pathlib.Path]):
+        """Initialize GenBank dataset.
+        
+        Args:
+            inputs: List of GenBank file paths.
+        """
+        super().__init__(inputs)
+    
     def extract_sequences(
         self,
         progress: rich.progress.Progress,
-        inputs: typing.List[pathlib.Path],
         output: pathlib.Path,
     ) -> pd.DataFrame:
         """Extracts nucleotide sequences from GenBank files.
@@ -114,7 +119,7 @@ class GenBankDataset(BaseDataset):
         n_duplicate = 0
         with open(output, "w") as dst:
             task1 = progress.add_task(f"[bold blue]{'Working':>9}[/]")
-            for input_path in progress.track(inputs, task_id=task1):
+            for input_path in progress.track(self.inputs, task_id=task1): 
                 task2 = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
                 with io.BufferedReader(progress.open(input_path, "rb", task_id=task2)) as reader:  # type: ignore
                     if reader.peek().startswith(_GZIP_MAGIC):
@@ -141,7 +146,6 @@ class GenBankDataset(BaseDataset):
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        inputs: typing.List[pathlib.Path],
         output: pathlib.Path,
         representatives: typing.Container[str],
     ) -> typing.Dict[str, int]:
@@ -156,7 +160,7 @@ class GenBankDataset(BaseDataset):
         """
         protein_sizes = {}
         with output.open("w") as dst:
-            for input_path in inputs:
+            for input_path in self.inputs: 
                 task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
                 with io.BufferedReader(progress.open(input_path, "rb", task_id=task)) as reader:  # type: ignore
                     if reader.peek()[:2] == b"\x1f\x8b":
@@ -197,22 +201,30 @@ class GenBankDataset(BaseDataset):
 
 
 class FastaGFFDataset(BaseDataset):
-    """FastaGFF dataset class.
+    """FastaGFF dataset class."""
 
-    Uses adapters to handle different cluster data formats.
-    """
-
-    def __init__(self, adapter: ClusterDataAdapter) -> None:
+    def __init__(
+        self, 
+        inputs: typing.List[pathlib.Path],
+        adapter: ClusterDataAdapter,
+    ) -> None:
         """Initialize the FastaGFFDataset class.
 
         Args:
+            inputs: List of input file paths (typically metadata TSV).
             adapter: Adapter for handling format-specific logic.
         """
-        self.cluster_metadata: typing.Optional[typing.Union[pathlib.Path, str]] = None
-        self.verbose: bool = False
+        super().__init__(inputs)
         self.adapter = adapter
+        self.verbose: bool = False
         self.gff_cache_dir: typing.Optional[pathlib.Path] = None
         self._metadata_cache_path: typing.Optional[pathlib.Path] = None
+        
+        if inputs:
+            self.cluster_metadata = inputs[0]
+        else:
+            self.cluster_metadata = None
+
 
     def _create_genome_context(self, row: typing.Dict, genome_id: str) -> GenomeContext:
         """Create GenomeContext from a dataframe row."""
@@ -229,7 +241,6 @@ class FastaGFFDataset(BaseDataset):
     def extract_sequences(
         self,
         progress: rich.progress.Progress,
-        inputs: typing.List[pathlib.Path],
         output: pathlib.Path,
     ) -> pd.DataFrame:
         """Extracts nucleotide sequences from gene clusters and caches metadata."""
@@ -477,3 +488,24 @@ class FastaGFFDataset(BaseDataset):
         progress.console.print(
             f"[bold green]{'Extracted':>12}[/] {len(results):,} proteins from {rep_count} representative gene clusters"
         )
+
+class DefenseFinderDataset(FastaGFFDataset):
+    """DefenseFinder-specific dataset class.
+    
+    Inherits all functionality from FastaGFFDataset but provides
+    explicit type identity for format-specific protein ID parsing.
+    Uses double-underscore delimiter (sys_id__protein_id) for protein IDs.
+    """
+    
+    def __init__(
+        self, 
+        inputs: typing.List[pathlib.Path],
+        adapter: ClusterDataAdapter,
+    ) -> None:
+        """Initialize DefenseFinder dataset.
+        
+        Args:
+            inputs: List of input file paths (typically metadata TSV).
+            adapter: Adapter for handling DefenseFinder-specific logic.
+        """
+        super().__init__(inputs, adapter)

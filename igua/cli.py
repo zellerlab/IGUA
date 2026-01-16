@@ -26,7 +26,7 @@ except ImportError:
     from argparse import HelpFormatter
 
 from . import __version__
-from .seqio import BaseDataset, GenBankDataset, FastaGFFDataset
+from .seqio import BaseDataset, GenBankDataset, FastaGFFDataset, DefenseFinderDataset
 
 from .cluster_extractor import GenericClusterAdapter, DefenseFinderAdapter
 from .mmseqs import MMSeqs, Database, Clustering
@@ -365,25 +365,23 @@ def create_dataset(
     
     if dataset_type == "genbank":
         progress.console.print(f"[bold blue]{'Mode':>12}[/] GenBank files")
-        return GenBankDataset()
+        return GenBankDataset(inputs=args.input)
     
     elif dataset_type == "defense-finder":
         adapter = DefenseFinderAdapter(activity_filter=args.activity)
         
         if args.column_mapping:
             with open(args.column_mapping) as f:
-                custom_mapping = json.load(f)
-                adapter._column_mapping = custom_mapping
+                column_mapping = json.load(f)
+            adapter._column_mapping.update(column_mapping)
             progress.console.print(
                 f"[bold blue]{'Mapping':>12}[/] [magenta]{args.column_mapping}[/]"
             )
         
-        dataset = FastaGFFDataset(adapter=adapter)
+        dataset = DefenseFinderDataset(inputs=args.input, adapter=adapter) 
         dataset.verbose = args.verbose
-        
+        progress.console.print(f"[bold blue]{'Mode':>12}[/] DefenseFinder format")
         if args.input:
-            dataset.cluster_metadata = args.input[0]
-            progress.console.print(f"[bold blue]{'Mode':>12}[/] DefenseFinder format")
             progress.console.print(f"[bold blue]{'Metadata':>12}[/] [magenta]{args.input[0]}[/]")
         
         return dataset
@@ -398,17 +396,16 @@ def create_dataset(
             )
         
         adapter = GenericClusterAdapter(column_mapping=column_mapping)
-        dataset = FastaGFFDataset(adapter=adapter)
+        dataset = FastaGFFDataset(inputs=args.input, adapter=adapter)
         dataset.verbose = args.verbose
         
         if args.input:
-            dataset.cluster_metadata = args.input[0]
             progress.console.print(f"[bold blue]{'Mode':>12}[/] Generic gene cluster format")
             progress.console.print(f"[bold blue]{'Metadata':>12}[/] [magenta]{args.input[0]}[/]")
         
         if not args.column_mapping:
             progress.console.print(
-                f"[bold yellow]{'Note':>12}[/] Using default column names (sys_id, sys_beg, sys_end, protein_in_syst)"
+                f"[bold yellow]{'Note':>12}[/] Using default column names: sys_id, sys_beg, sys_end, protein_in_syst"
             )
         
         return dataset
@@ -613,7 +610,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
         # extract raw sequences
         clusters_fna = workdir.joinpath("clusters.fna")
         progress.console.print(f"[bold blue]{'Loading':>12}[/] input clusters")
-        input_sequences = dataset.extract_sequences(progress, args.input, clusters_fna)
+        input_sequences = dataset.extract_sequences(progress, clusters_fna)
         progress.console.print(
             f"[bold green]{'Loaded':>12}[/] {len(input_sequences)} clusters to process"
         )
@@ -679,13 +676,8 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
                 columns=["protein_representative", "protein_id"]
             )
 
-            # extract protein representatives - determine cluster_id based on dataset type
-            is_defense_finder = isinstance(dataset, FastaGFFDataset)
-            if (
-                is_defense_finder
-                and hasattr(dataset, "cluster_metadata")
-                and dataset.cluster_metadata
-            ):
+            # extract protein representatives
+            if isinstance(dataset, DefenseFinderDataset):
                 # double underscore for DefenseFinder
                 prot_clusters["cluster_id"] = (
                     prot_clusters["protein_id"].str.rsplit("__", n=1).str[0]
