@@ -7,6 +7,7 @@ import os
 import pathlib
 import tempfile
 import typing
+import sys
 
 import anndata
 import rich
@@ -33,8 +34,15 @@ from .mmseqs import MMSeqs, Database, Clustering
 from .hca import manhattan, linkage
 
 
-
 def build_parser() -> argparse.ArgumentParser:
+    show_all = '--help-all' in sys.argv
+
+    if show_all:
+        sys.argv = [arg if arg != '--help-all' else '--help' for arg in sys.argv]
+
+    def help_text(text: str) -> str:
+        return text if show_all else argparse.SUPPRESS
+
     parser = argparse.ArgumentParser(
         prog="igua",
         formatter_class=HelpFormatter,
@@ -44,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Gene Cluster Families (GCFs) from gene clusters of genomic and "
             "metagenomic origin. "
         ),
+        epilog="Use --help-all to see all available options including advanced parameters." if not show_all else None,
     )
     parser.add_argument(
         "-h",
@@ -51,6 +60,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Display this help message and exit.",
         action="help",
     )
+
+    if not show_all:
+        parser.add_argument(
+            "--help-all",
+            help="Display all options including advanced parameters.",
+            action="help",
+        )
+
     parser.add_argument(
         "-V",
         "--version",
@@ -69,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     group_input = parser.add_argument_group(
         "Input",
-        "Input files for the pipeline.",
+        "Mandatory input files required by the pipeline."
     )
     group_input.add_argument(
         "-i",
@@ -78,7 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         type=pathlib.Path,
         default=[],
-        required=False,
+        required=True,
     )
     group_input.add_argument(
         "--dataset-type",
@@ -100,13 +117,13 @@ def build_parser() -> argparse.ArgumentParser:
     group_output.add_argument(
         "-C",
         "--compositions",
-        help="A file where to write compositional data for GCF representatives.",
+        help=help_text("A file where to write compositional data for GCF representatives."),
         type=pathlib.Path,
     )
     group_output.add_argument(
         "-F",
         "--features",
-        help="A file where to write protein cluster representatives in FASTA format.",
+        help=help_text("A file where to write protein cluster representatives in FASTA format."),
         type=pathlib.Path,
     )
 
@@ -116,7 +133,7 @@ def build_parser() -> argparse.ArgumentParser:
     group_parameters.add_argument(
         "-w",
         "--workdir",
-        help="A folder to use for temporary data produced by MMSeqs2.",
+        help=help_text("A folder to use for temporary data produced by MMSeqs2."),
     )
     group_parameters.add_argument(
         "--prefix",
@@ -129,13 +146,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_clustering.add_argument(
         "--no-clustering",
-        help="Disable the protein-level clustering.",
+        help=help_text("Disable the protein-level clustering."),
         action="store_false",
         dest="clustering",
     )
     group_clustering.add_argument(
         "--clustering-method",
-        help="The hierarchical method to use for protein-level clustering.",
+        help=help_text("The hierarchical method to use for protein-level clustering."),
         default="average",
         choices={
             "average",
@@ -149,13 +166,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_clustering.add_argument(
         "--clustering-distance",
-        help="The distance threshold after which to stop merging clusters.",
+        help=help_text("The distance threshold after which to stop merging clusters."),
         type=float,
         default=0.8,
     )
     group_clustering.add_argument(
         "--precision",
-        help="The numerical precision to use for computing distances for hierarchical clustering.",
+        help=help_text("The numerical precision to use for computing distances for hierarchical clustering."),
         default="double",
         choices={"half", "single", "double"},
     )
@@ -166,28 +183,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_mmseqs_dedup.add_argument(
         "--dedup-identity",
-        help="Sequence identity threshold for deduplication step.",
+        help=help_text("Sequence identity threshold for deduplication step."),
         type=float,
         default=0.85,
         metavar="FLOAT",
     )
     group_mmseqs_dedup.add_argument(
         "--dedup-coverage",
-        help="Coverage threshold for deduplication step.",
+        help=help_text("Coverage threshold for deduplication step."),
         type=float,
         default=1.0,
         metavar="FLOAT",
     )
     group_mmseqs_dedup.add_argument(
         "--dedup-evalue",
-        help="E-value threshold for deduplication step.",
+        help=help_text("E-value threshold for deduplication step."),
         type=float,
         default=0.001,
         metavar="FLOAT",
     )
     group_mmseqs_dedup.add_argument(
         "--dedup-cluster-mode",
-        help="Clustering mode for deduplication: 0=SetCover, 1=Connected component, 2=Greedy incremental.",
+        help=help_text("Clustering mode for deduplication: 0=SetCover, 1=Connected component, 2=Greedy incremental."),
         type=int,
         default=0,
         choices=[0, 1, 2],
@@ -195,7 +212,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_mmseqs_dedup.add_argument(
         "--dedup-coverage-mode",
-        help="Coverage mode for deduplication: 0=target, 1=query, 2=both, 3=length of target, 4=length of query, 5=length of both.",
+        help=help_text("Coverage mode for deduplication: 0=target, 1=query, 2=both, 3=length of target, 4=length of query, 5=length of both."),
         type=int,
         default=1,
         choices=[0, 1, 2, 3, 4, 5],
@@ -203,7 +220,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_mmseqs_dedup.add_argument(
         "--dedup-spaced-kmer-mode",
-        help="Spaced k-mer mode for deduplication: 0=use ungapped k-mers, 1=use spaced k-mers.",
+        help=help_text("Spaced k-mer mode for deduplication: 0=use ungapped k-mers, 1=use spaced k-mers."),
         type=int,
         default=0,
         choices=[0, 1],
@@ -216,28 +233,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_mmseqs_nuc.add_argument(
         "--nuc-identity",
-        help="Sequence identity threshold for nucleotide clustering step.",
+        help=help_text("Sequence identity threshold for nucleotide clustering step."),
         type=float,
         default=0.6,
         metavar="FLOAT",
     )
     group_mmseqs_nuc.add_argument(
         "--nuc-coverage",
-        help="Coverage threshold for nucleotide clustering step.",
+        help=help_text("Coverage threshold for nucleotide clustering step."),
         type=float,
         default=0.5,
         metavar="FLOAT",
     )
     group_mmseqs_nuc.add_argument(
         "--nuc-evalue",
-        help="E-value threshold for nucleotide clustering step.",
+        help=help_text("E-value threshold for nucleotide clustering step."),
         type=float,
         default=0.001,
         metavar="FLOAT",
     )
     group_mmseqs_nuc.add_argument(
         "--nuc-cluster-mode",
-        help="Clustering mode for nucleotide step: 0=SetCover, 1=Connected component, 2=Greedy incremental.",
+        help=help_text("Clustering mode for nucleotide step: 0=SetCover, 1=Connected component, 2=Greedy incremental."),
         type=int,
         default=0,
         choices=[0, 1, 2],
@@ -245,7 +262,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_mmseqs_nuc.add_argument(
         "--nuc-coverage-mode",
-        help="Coverage mode for nucleotide step: 0=target, 1=query, 2=both, 3=length of target, 4=length of query, 5=length of both.",
+        help=help_text("Coverage mode for nucleotide step: 0=target, 1=query, 2=both, 3=length of target, 4=length of query, 5=length of both."),
         type=int,
         default=0,
         choices=[0, 1, 2, 3, 4, 5],
@@ -253,7 +270,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_mmseqs_nuc.add_argument(
         "--nuc-spaced-kmer-mode",
-        help="Spaced k-mer mode for nucleotide step: 0=use ungapped k-mers, 1=use spaced k-mers.",
+        help=help_text("Spaced k-mer mode for nucleotide step: 0=use ungapped k-mers, 1=use spaced k-mers."),
         type=int,
         default=0,
         choices=[0, 1],
@@ -266,28 +283,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_mmseqs_prot.add_argument(
         "--prot-identity",
-        help="Sequence identity threshold for protein clustering step.",
+        help=help_text("Sequence identity threshold for protein clustering step."),
         type=float,
         default=0.5,
         metavar="FLOAT",
     )
     group_mmseqs_prot.add_argument(
         "--prot-coverage",
-        help="Coverage threshold for protein clustering step.",
+        help=help_text("Coverage threshold for protein clustering step."),
         type=float,
         default=0.9,
         metavar="FLOAT",
     )
     group_mmseqs_prot.add_argument(
         "--prot-evalue",
-        help="E-value threshold for protein clustering step.",
+        help=help_text("E-value threshold for protein clustering step."),
         type=float,
         default=0.001,
         metavar="FLOAT",
     )
     group_mmseqs_prot.add_argument(
         "--prot-coverage-mode",
-        help="Coverage mode for protein step: 0=target, 1=query, 2=both, 3=length of target, 4=length of query, 5=length of both.",
+        help=help_text("Coverage mode for protein step: 0=target, 1=query, 2=both, 3=length of target, 4=length of query, 5=length of both."),
         type=int,
         default=1,
         choices=[0, 1, 2, 3, 4, 5],
@@ -300,49 +317,48 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_dataset.add_argument(
         "--activity",
-        help="Filter by defense system activity (defense-finder only): 'all' (default), 'defense', 'antidefense'",
+        help=help_text("Filter by defense system activity (defense-finder only): 'all' (default), 'defense', 'antidefense'"),
         default="all",
         choices={"defense", "antidefense", "all"},
     )
     group_dataset.add_argument(
         "--column-mapping",
-        help="JSON file mapping column names for gene-cluster format (e.g., '{\"sys_id\":\"cluster_id\",...}')",
+        help=help_text("JSON file mapping column names for gene-cluster format (e.g., '{\"sys_id\":\"cluster_id\",...}')"),
         type=pathlib.Path,
     )
     group_dataset.add_argument(
         "--verbose",
-        help="Detailed output for extracted cluster sequences",
+        help=help_text("Detailed output for extracted cluster sequences"),
         action="store_true",
         default=False,
     )
     group_dataset.add_argument(
         "--systems-tsv",
-        help="Path to systems/clusters TSV file (requires --genes-tsv, --gff-file, --genome-fasta, --protein-fasta)",
+        help=help_text("Path to systems/clusters TSV file (requires --genes-tsv, --gff-file, --genome-fasta, --protein-fasta)"),
         type=pathlib.Path,
     )
     group_dataset.add_argument(
         "--genes-tsv",
-        help="Path to cluster genes TSV file",
+        help=help_text("Path to cluster genes TSV file"),
         type=pathlib.Path,
     )
     group_dataset.add_argument(
         "--gff-file",
-        help="Path to GFF annotation file",
+        help=help_text("Path to GFF annotation file"),
         type=pathlib.Path,
     )
     group_dataset.add_argument(
         "--genome-fasta",
-        help="Path to genome FASTA file",
+        help=help_text("Path to genome FASTA file"),
         type=pathlib.Path,
     )
     group_dataset.add_argument(
         "--protein-fasta",
-        help="Path to protein FASTA file (.faa)",
+        help=help_text("Path to protein FASTA file (.faa)"),
         type=pathlib.Path,
     )
 
     return parser
-
 
 
 def create_dataset(
