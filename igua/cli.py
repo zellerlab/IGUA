@@ -27,7 +27,10 @@ except ImportError:
     from argparse import HelpFormatter
 
 from . import __version__
-from .seqio import BaseDataset, GenBankDataset, FastaGFFDataset, DefenseFinderDataset
+from .base_dataset import BaseDataset
+from .genbank_dataset import GenBankDataset
+from .fasta_gff_dataset import FastaGFFDataset
+from .defensefinder_dataset import DefenseFinderDataset
 
 from .cluster_extractor import GenericClusterAdapter, DefenseFinderAdapter
 from .mmseqs import MMSeqs, Database, Clustering
