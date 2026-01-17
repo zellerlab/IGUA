@@ -32,7 +32,7 @@ from .genbank_dataset import GenBankDataset
 from .fasta_gff_dataset import FastaGFFDataset
 from .defensefinder_dataset import DefenseFinderDataset
 
-from .cluster_extractor import GenericClusterAdapter, DefenseFinderAdapter
+from .fasta_gff_dataset import GenericClusterAdapter, DefenseFinderAdapter
 from .mmseqs import MMSeqs, Database, Clustering
 from .hca import manhattan, linkage
 

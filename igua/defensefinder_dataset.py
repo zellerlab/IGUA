@@ -1,7 +1,7 @@
 import pathlib
 import typing
 
-from .cluster_extractor import ClusterDataAdapter
+from .fasta_gff_dataset import ClusterDataAdapter
 from .fasta_gff_dataset import FastaGFFDataset
 
 
