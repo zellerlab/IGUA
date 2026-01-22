@@ -326,7 +326,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_dataset.add_argument(
         "--column-mapping",
-        help=help_text("JSON file mapping column names for gene-cluster format (e.g., '{\"sys_id\":\"cluster_id\",...}')"),
+        help=help_text("JSON file mapping column names for gene-cluster format (e.g., '{\"cluster_id\":\"sys_id\",...}')"),
         type=pathlib.Path,
     )
     group_dataset.add_argument(
@@ -336,13 +336,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
     )
     group_dataset.add_argument(
-        "--systems-tsv",
-        help=help_text("Path to systems/clusters TSV file (requires --genes-tsv, --gff-file, --genome-fasta, --protein-fasta)"),
-        type=pathlib.Path,
-    )
-    group_dataset.add_argument(
-        "--genes-tsv",
-        help=help_text("Path to cluster genes TSV file"),
+        "--cluster-tsv",
+        help=help_text("Path to clusters TSV file (requires --gff-file, --genome-fasta, --protein-fasta)"),
         type=pathlib.Path,
     )
     group_dataset.add_argument(
@@ -424,7 +419,7 @@ def create_dataset(
         
         if not args.column_mapping:
             progress.console.print(
-                f"[bold yellow]{'Note':>12}[/] Using default column names: sys_id, sys_beg, sys_end, protein_in_syst"
+                f"[bold yellow]{'Note':>12}[/] Using default column names: cluster_id, sys_beg, sys_end, protein_in_syst"
             )
         
         return dataset
@@ -566,8 +561,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
 
     # validate individual file arguments
     individual_args = [
-        args.systems_tsv,
-        args.genes_tsv,
+        args.cluster_tsv,
         args.gff_file,
         args.genome_fasta,
         args.protein_fasta,
@@ -579,14 +573,13 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
         if not all(individual_args):
             parser.error(
                 "Individual file mode requires ALL of: "
-                "--systems-tsv, --genes-tsv, --gff-file, --genome-fasta, --protein-fasta"
+                "--cluster-tsv, --gff-file, --genome-fasta, --protein-fasta"
             )
 
         if not args.input:
             input_dict_df = {
                 "genome_id": [os.path.basename(args.genome_fasta).split(".")[0]],
-                "systems_tsv": [str(args.systems_tsv)],
-                "genes_tsv": [str(args.genes_tsv)],
+                "cluster_tsv": [str(args.cluster_tsv)],
                 "gff_file": [str(args.gff_file)],
                 "genome_fasta_file": [str(args.genome_fasta)],
                 "protein_fasta_file": [str(args.protein_fasta)],

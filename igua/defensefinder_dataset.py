@@ -10,7 +10,7 @@ class DefenseFinderDataset(FastaGFFDataset):
 
     Inherits all functionality from FastaGFFDataset but provides
     explicit type identity for format-specific protein ID parsing.
-    Uses double-underscore delimiter (sys_id__protein_id) for protein IDs.
+    Uses double-underscore delimiter (cluster_id__protein_id) for protein IDs.
     """
 
     def __init__(
