@@ -8,9 +8,7 @@ import tarfile
 import traceback
 import typing
 import uuid
-from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
-from io import StringIO
 
 import pandas as pd
 import polars as pl
@@ -78,6 +76,7 @@ def _parse_tar_path(
                 return tar_path, member_path
 
     return None, None
+
 
 def smart_open(
     path: pathlib.Path, mode: str = "rb", tar_cache: typing.Optional[TarCache] = None
@@ -393,127 +392,8 @@ class ProteinIndex:
         return None
 
 
-class ClusterDataAdapter(ABC):
-    """Adapter interface for different cluster data formats.
-
-    Handles format-specific loading, filtering, and column mapping,
-    presenting a unified interface to the core extraction logic.
-    """
-
-    @abstractmethod
-    def load_systems(self, tsv_path: pathlib.Path, console: Console) -> pl.DataFrame:
-        """Load and preprocess systems TSV.
-
-        Args:
-            tsv_path: Path to systems TSV file.
-            console: Rich console for logging.
-
-        Returns:
-            Preprocessed DataFrame with standardized column names.
-        """
-        pass
-
-    @abstractmethod
-    def get_column_mapping(self) -> typing.Dict[str, str]:
-        """Get column name mapping for this format.
-
-        Returns:
-            Dictionary mapping internal names to TSV column names.
-        """
-        pass
-
-
-class DefenseFinderAdapter(ClusterDataAdapter):
-    """Adapter for DefenseFinder output format.
-
-    Handles DefenseFinder-specific activity filtering and column names.
-    """
-
-    def __init__(self, activity_filter: str = "all"):
-        """Initialize DefenseFinder adapter.
-
-        Args:
-            activity_filter: Filter by activity type ('all', 'defense', 'antidefense').
-        """
-        self.activity_filter = activity_filter
-        self._column_mapping = {
-            "cluster_id": "sys_id",
-            "start_gene": "sys_beg",
-            "end_gene": "sys_end",
-            "genes_in_cluster": "protein_in_syst",
-        }
-
-    def load_systems(self, tsv_path: pathlib.Path, console: Console) -> pl.DataFrame:
-        """Load DefenseFinder systems with optional activity filtering."""
-        df = pl.read_csv(tsv_path, separator="\t")
-        original_count = len(df)
-
-        if self.activity_filter.lower() != "all":
-            if "activity" in df.columns:
-                df = df.filter(
-                    pl.col("activity").str.to_lowercase()
-                    == self.activity_filter.lower()
-                )
-                console.print(
-                    f"[bold green]{'Filtered':>12}[/] {original_count} → {len(df)} "
-                    f"([bold cyan]{self.activity_filter}[/] only)"
-                )
-            else:
-                console.print(
-                    f"[bold yellow]{'Warning':>12}[/] No 'activity' column found"
-                )
-        else:
-            console.print(
-                f"[bold blue]{'Processing':>12}[/] all {original_count} clusters"
-            )
-
-        return df
-
-    def get_column_mapping(self) -> typing.Dict[str, str]:
-        return self._column_mapping
-
-
-class GenericClusterAdapter(ClusterDataAdapter):
-    """Adapter for generic gene cluster TSV format.
-
-    Supports custom column mappings for different TSV schemas.
-    """
-
-    def __init__(self, column_mapping: typing.Optional[typing.Dict[str, str]] = None):
-        """Initialize generic cluster adapter.
-
-        Args:
-            column_mapping: Custom column name mapping. If None, uses defaults.
-        """
-        self._column_mapping = column_mapping or {
-            "cluster_id": "cluster_id",
-            "start_gene": "start_gene",
-            "end_gene": "end_gene",
-            "genes_in_cluster": "genes_in_cluster",
-        }
-
-    def load_systems(self, tsv_path: pathlib.Path, console: Console) -> pl.DataFrame:
-        """Load generic cluster systems without filtering."""
-        df = pl.read_csv(tsv_path, separator="\t")
-        console.print(f"[bold blue]{'Processing':>12}[/] all {len(df)} clusters")
-        return df
-
-    def get_column_mapping(self) -> typing.Dict[str, str]:
-        return self._column_mapping
-
-
 class GenomeContext:
-    """Immutable data container for genome/strain file paths and metadata.
-
-    Attributes:
-        genome_id: Unique genome identifier.
-        cluster_tsv: Path to systems TSV file.
-        gff_file: Path to GFF annotation file.
-        genome_fasta: Path to genome FASTA file.
-        protein_fasta: Path to protein FASTA file.
-        adapter: Adapter for loading and preprocessing cluster data.
-        missing_files: List of missing file paths.
-    """
+    """Immutable data container for genome/strain file paths and metadata."""
 
     def __init__(
         self,
@@ -522,24 +402,19 @@ class GenomeContext:
         gff_file: pathlib.Path,
         genome_fasta: pathlib.Path,
         protein_fasta: pathlib.Path,
-        adapter: ClusterDataAdapter,
+        column_mapping: typing.Dict[str, str],
+        system_loader: typing.Callable[
+            [pathlib.Path, Console], pl.DataFrame
+        ],  # Add this
     ):
-        """Initialize genome context.
 
-        Args:
-            genome_id: Unique genome identifier (generates UUID if None).
-            cluster_tsv: Path to systems TSV file.
-            gff_file: Path to GFF annotation file.
-            genome_fasta: Path to genome FASTA file.
-            protein_fasta: Path to protein FASTA file.
-            adapter: Adapter for handling format-specific logic.
-        """
         self.genome_id = genome_id if genome_id else str(uuid.uuid4())[:8]
         self.cluster_tsv = pathlib.Path(cluster_tsv)
         self.gff_file = pathlib.Path(gff_file)
         self.genome_fasta = pathlib.Path(genome_fasta)
         self.protein_fasta = pathlib.Path(protein_fasta)
-        self.adapter = adapter
+        self.column_mapping = column_mapping
+        self.system_loader = system_loader
 
         self.missing_files = [
             f"{name}: {path}"
@@ -556,16 +431,10 @@ class GenomeContext:
         return (
             f"<GenomeContext "
             f"genome_id={self.genome_id!r} "
-            f"adapter={self.adapter.__class__.__name__} "
-            f"files={5 - len(self.missing_files)}/5>"
+            f"files={4 - len(self.missing_files)}/4>"
         )
 
     def is_valid(self) -> bool:
-        """Check if all required files exist.
-
-        Returns:
-            True if all files exist, False otherwise.
-        """
         return len(self.missing_files) == 0
 
 
@@ -613,8 +482,9 @@ class GenomeResources:
         if self._cluster_df is not None:
             return self._cluster_df
 
-        df = self.context.adapter.load_systems(self.context.cluster_tsv, self.console)
-        col_map = self.context.adapter.get_column_mapping()
+        df = self.context.system_loader(self.context.cluster_tsv, self.console)
+
+        col_map = self.context.column_mapping
         cluster_col = col_map["cluster_id"]
 
         if (
@@ -697,7 +567,7 @@ class GenomeResources:
         Returns:
             SystemCoordinates instance.
         """
-        col_map = self.context.adapter.get_column_mapping()
+        col_map = self.context.column_mapping
         cluster_id = row[col_map["cluster_id"]]
 
         sys_beg_gene = row.get(col_map["start_gene"])
@@ -746,7 +616,7 @@ class GenomeResources:
             return self._invalid_coord(
                 cluster_id,
                 gene_list,
-                f"Start and end genes on different contigs/seqs: {seq_id_beg} vs {seq_id_end}",
+                f"Start and end genes on different contigs/seqs: {seq_id_beg} vs {seq_id_end} for [bold cyan]{str(self.context.genome_id)}[/]",
             )
 
         seq_id = seq_id_beg
@@ -836,7 +706,7 @@ class GenomeResources:
             contig_groups.setdefault(coord.seq_id, []).append(coord)
 
         self.console.print(
-            f"[bold blue]{'Processing':>12}[/] {len(valid_coords)} clusters across {len(contig_groups)} contigs/seqs"
+            f"[bold blue]{'Processing':>12}[/] {len(valid_coords)} clusters across {len(contig_groups)} contigs/seqs for [bold cyan]{str(self.context.genome_id)}[/]"
         )
 
         results = []
@@ -904,7 +774,7 @@ class GenomeResources:
 
         total_genes = len(all_gene_ids)
         self.console.print(
-            f"[bold blue]{'Processing':>12}[/] {total_genes} proteins from {len(valid_coords)} clusters"
+            f"[bold blue]{'Processing':>12}[/] {total_genes} proteins from {len(valid_coords)} clusters for [bold cyan]{str(genome_id)}[/]"
         )
 
         protein_sizes = {}
@@ -1041,26 +911,46 @@ class FastaGFFDataset(BaseDataset):
     def __init__(
         self,
         inputs: typing.List[pathlib.Path],
-        adapter: ClusterDataAdapter,
+        column_mapping: typing.Optional[typing.Dict[str, str]] = None,
     ) -> None:
-        """Initialize the FastaGFFDataset class."""
+        """Initialize the FastaGFFDataset class.
+
+        Args:
+            inputs: List of input paths (metadata TSV or individual files).
+            column_mapping: Custom column mapping. If None, uses default generic mapping.
+        """
         super().__init__(inputs)
-        self.adapter = adapter
+
+        self.column_mapping = column_mapping or {
+            "cluster_id": "cluster_id",
+            "start_gene": "start_gene",
+            "end_gene": "end_gene",
+            "genes_in_cluster": "genes_in_cluster",
+        }
+
         self.verbose: bool = False
         self.gff_cache_dir: typing.Optional[pathlib.Path] = None
         self._metadata_cache_path: typing.Optional[pathlib.Path] = None
         self.cluster_metadata = inputs[0]
 
     def _create_genome_context(self, row: typing.Dict, genome_id: str) -> GenomeContext:
-        """Create GenomeContext from a dataframe row."""
         return GenomeContext(
             genome_id=genome_id,
             cluster_tsv=pathlib.Path(row["cluster_tsv"]),
             gff_file=pathlib.Path(row["gff_file"]),
             genome_fasta=pathlib.Path(row["genome_fasta_file"]),
             protein_fasta=pathlib.Path(row["protein_fasta_file"]),
-            adapter=self.adapter,
+            column_mapping=self.column_mapping,
+            system_loader=self._load_and_filter_systems,
         )
+
+    def _load_and_filter_systems(
+        self, tsv_path: pathlib.Path, console: Console
+    ) -> pl.DataFrame:
+        """Load systems TSV without filtering (generic behavior)."""
+        df = pl.read_csv(tsv_path, separator="\t")
+        console.print(f"[bold blue]{'Processing':>12}[/] all {len(df)} clusters")
+        return df
 
     def extract_sequences(
         self,
@@ -1111,11 +1001,11 @@ class FastaGFFDataset(BaseDataset):
 
                             valid_count = sum(1 for c in coordinates if c.valid)
                             progress.console.print(
-                                f"[bold green]{'Validated':>12}[/] {valid_count}/{len(coordinates)} clusters"
+                                f"[bold green]{'Validated':>12}[/] {valid_count}/{len(coordinates)} clusters for [bold cyan]{str(genome_id)}[/]"
                             )
 
                             progress.console.print(
-                                f"[bold blue]{'Extracting':>12}[/] cluster genome sequences"
+                                f"[bold blue]{'Extracting':>12}[/] cluster genome sequences for [bold cyan]{str(genome_id)}[/]"
                             )
                             extraction_results = resources.extract_genome_sequences(
                                 dst, verbose=self.verbose
@@ -1325,7 +1215,7 @@ class FastaGFFDataset(BaseDataset):
 
         if not valid_coords:
             console.print(
-                f"[bold yellow]{'Warning':>12}[/] No valid clusters for [bold cyan]{str(genome_id)}[/]"
+                f"[bold yellow]{'Warning':>12}[/] No clusters to extract for [bold cyan]{str(genome_id)}[/]"
             )
             return {}
 
@@ -1340,7 +1230,7 @@ class FastaGFFDataset(BaseDataset):
 
             total_genes = len(all_gene_ids)
             console.print(
-                f"[bold blue]{'Processing':>12}[/] {total_genes} proteins from {len(valid_coords)} clusters"
+                f"[bold blue]{'Processing':>12}[/] {total_genes} proteins from {len(valid_coords)} clusters for [bold cyan]{str(genome_id)}[/]"
             )
 
             protein_sizes = {}

@@ -32,7 +32,6 @@ from .genbank_dataset import GenBankDataset
 from .fasta_gff_dataset import FastaGFFDataset
 from .defensefinder_dataset import DefenseFinderDataset
 
-from .fasta_gff_dataset import GenericClusterAdapter, DefenseFinderAdapter
 from .mmseqs import MMSeqs, Database, Clustering
 from .hca import manhattan, linkage
 
@@ -102,8 +101,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_input.add_argument(
         "--dataset-type",
-        help="Dataset type: 'genbank' for GenBank files, 'defense-finder' for DefenseFinder output, 'gene-cluster' for generic cluster TSV",
-        choices=["genbank", "defense-finder", "gene-cluster"],
+        help="Dataset type: 'genbank' for GenBank files, 'manual' for generic cluster TSV, 'defense-finder' for DefenseFinder output.",
+        choices=["genbank", "manual", "defense-finder"],
         default=None,
     )
 
@@ -326,7 +325,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     group_dataset.add_argument(
         "--column-mapping",
-        help=help_text("JSON file mapping column names for gene-cluster format (e.g., '{\"cluster_id\":\"sys_id\",...}')"),
+        help=help_text("JSON file mapping column names for manual format (e.g., '{\"cluster_id\":\"sys_id\",...}')"),
         type=pathlib.Path,
     )
     group_dataset.add_argument(
@@ -364,65 +363,43 @@ def create_dataset(
     args: argparse.Namespace,
 ) -> BaseDataset:
     """Create dataset handler with appropriate adapter."""
-    
+
     dataset_type = args.dataset_type
-    
+
     if dataset_type is None:
         if args.input:
             first_file = args.input[0]
             if first_file.suffix.lower() in {".gb", ".gbk", ".genbank"}:
                 dataset_type = "genbank"
             elif first_file.suffix.lower() == ".tsv":
-                dataset_type = "gene-cluster"
+                dataset_type = "manual"
         else:
-            dataset_type = "gene-cluster"
-    
+            dataset_type = "unspecified"
+
     if dataset_type == "genbank":
-        progress.console.print(f"[bold blue]{'Mode':>12}[/] GenBank files")
-        return GenBankDataset(inputs=args.input)
-    
-    elif dataset_type == "defense-finder":
-        adapter = DefenseFinderAdapter(activity_filter=args.activity)
-        
-        if args.column_mapping:
-            with open(args.column_mapping) as f:
-                column_mapping = json.load(f)
-            adapter._column_mapping.update(column_mapping)
-            progress.console.print(
-                f"[bold blue]{'Mapping':>12}[/] [magenta]{args.column_mapping}[/]"
-            )
-        
-        dataset = DefenseFinderDataset(inputs=args.input, adapter=adapter) 
-        dataset.verbose = args.verbose
-        progress.console.print(f"[bold blue]{'Mode':>12}[/] DefenseFinder format")
-        if args.input:
-            progress.console.print(f"[bold blue]{'Metadata':>12}[/] [magenta]{args.input[0]}[/]")
-        
-        return dataset
-    
-    else: 
+        progress.console.print(
+            f"[bold blue]{'Dataset':>12}[/] [magenta]GenBank[/] format"
+        )
+        return GenBankDataset(args.input)
+
+    elif dataset_type == "manual":
+        progress.console.print(
+            f"[bold blue]{'Dataset':>12}[/] [magenta]Manual[/] gene cluster format"
+        )
         column_mapping = None
         if args.column_mapping:
             with open(args.column_mapping) as f:
                 column_mapping = json.load(f)
-            progress.console.print(
-                f"[bold blue]{'Mapping':>12}[/] [magenta]{args.column_mapping}[/]"
-            )
-        
-        adapter = GenericClusterAdapter(column_mapping=column_mapping)
-        dataset = FastaGFFDataset(inputs=args.input, adapter=adapter)
-        dataset.verbose = args.verbose
-        
-        if args.input:
-            progress.console.print(f"[bold blue]{'Mode':>12}[/] Generic gene cluster format")
-            progress.console.print(f"[bold blue]{'Metadata':>12}[/] [magenta]{args.input[0]}[/]")
-        
-        if not args.column_mapping:
-            progress.console.print(
-                f"[bold yellow]{'Note':>12}[/] Using default column names: cluster_id, sys_beg, sys_end, protein_in_syst"
-            )
-        
-        return dataset
+        return FastaGFFDataset(args.input, column_mapping=column_mapping)
+
+    elif dataset_type == "defense-finder":
+        progress.console.print(
+            f"[bold blue]{'Dataset':>12}[/] [magenta]DefenseFinder[/] format"
+        )
+        return DefenseFinderDataset(args.input, activity_filter=args.activity)
+
+    else:
+        raise ValueError(f"Unknown dataset type: {dataset_type}")
 
 
 def get_mmseqs_params(args: argparse.Namespace) -> typing.Tuple[dict, dict, dict]:
@@ -689,8 +666,8 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
             )
 
             # extract protein representatives
-            if isinstance(dataset, DefenseFinderDataset):
-                # double underscore for DefenseFinder
+            if isinstance(dataset, DefenseFinderDataset) or isinstance(dataset, FastaGFFDataset):
+                # double underscore for DefenseFinder and FastaGFF
                 prot_clusters["cluster_id"] = (
                     prot_clusters["protein_id"].str.rsplit("__", n=1).str[0]
                 )
