@@ -101,27 +101,6 @@ may cause problems with gene clusters obtained with some tools, such as antiSMAS
 If the input contains duplicate identifiers, the first gene cluster with a given 
 identifier will be used, and a warning will be displayed.
 
-### 🛡️ IGUA-df
-
-IGUA can be run on gene clusters obtained with [DefenseFinder](https://github.com/mdmparis/defense-finder) through a dedicated subcommand `defense-finder` (abbreviated `defense-df`). This subcommand will parse the DefenseFinder outputs to extract the gene clusters and their corresponding protein sequences. 
-
-IGUA-df can be run on a single genome/strain by providing all the required files one by one. 
-
-```bash 
-$ igua \
-$   --defense-systems-tsv /path/to/my_strain_defense_finder_systems.tsv \
-$   --defense-genes-tsv /path/to/my_strain_defense_finder_genes.tsv \
-$   --gff-file /path/to/my_strain.gff \
-$   --genome-fasta-file /path/to/my_strain.fa \
-$   --protein-fasta--file /path/to/my_strain.faa
-```
-
-The other way to run IGUA-df is by providing a single tsv file which contains the paths to the files specified above. IGUA-df is run row by row _i.e._ genome by genome. The column names must be exactly as follows: `systems_tsv`, `genes_tsv`, `gff_file`, `genome_fasta_file`, `protein_fasta_file`. An optional column `genome_id` can be provided to specify the strain name, otherwise the row index will be used (_e.g._ `genome_0000000`). 
-
-```console
-$ igua -i ../defense_finder_metadata.tsv --dataset-type defense-finder
-```
-
 
 ### 📤 Outputs
 
@@ -159,6 +138,77 @@ be lowered to reduce memory usage, using `single` or `half` precision floating
 point numbers instead of the `double` precision used by default. Use the
 `--precision` flag to control numerical precision.
 
+### ⚙️ Advanced usage
+
+#### 🛠️ Running IGUA on manual gene clusters
+
+It is also possible to provide manually defined gene clusters through a TSV file with the `--dataset-type manual` option. The TSV file must contain at least the following columns:
+
+- (optional) `genome_id`: unique identifier for each genome/metagenome/strain/sample; by default, the row index will be used (_e.g._ `genome_0000000`)
+- `cluster_tsv`: path to a TSV file containing the gene cluster definitions for the genome
+- `gff_file`: path to the GFF file corresponding to the genome
+- `genome_fasta_file`: path to the genome FASTA file
+- `protein_fasta_file`: `path to the protein FASTA file
+
+The cluster TSV files must contain at least the following columns:
+
+- `cluster_id`: unique identifier for each gene cluster
+- `start_gene`: identifier of the first gene in the cluster
+- `end_gene`: identifier of the last gene in the cluster
+- `genes_in_cluster`: comma-separated list of gene identifiers in the cluster
+
+```console
+$ igua -i input_metadata.tsv --dataset-type manual
+```
+
+Alternatively, if the column names in the cluster TSV files differ from the expected ones, a JSON file can be provided with the `--column-mapping` option to map the expected column names to the actual ones. For example:
+
+```json
+{
+    "cluster_id": "sys_id",
+    "start_gene": "sys_beg",
+    "end_gene": "sys_end",
+    "genes_in_cluster": "protein_in_syst"
+}
+```
+
+```console
+$ igua -i input_metadata.tsv --dataset-type manual --column-mapping column_mapping.json
+```
+
+### 🛡️ Running IGUA on DefenseFinder outputs
+
+IGUA can be run on gene clusters obtained with [DefenseFinder](https://github.com/mdmparis/defense-finder) with a dedicated dataset type `--dataset-type defensefinder`. This will parse the DefenseFinder outputs `***_defense_finder_systems.tsv` to extract the gene clusters and their corresponding protein sequences. 
+
+```console
+$ igua -i ../defense_finder_metadata.tsv --dataset-type defense-finder
+```
+
+This is equivalent to using the manual dataset type with appropriate column mapping, but more convenient. Hence, `defense_finder_metadata.tsv` must contain the following columns:
+
+- (optional) `genome_id`: unique identifier for each genome/metagenome/strain/sample; by default, the row index will be used (_e.g._ `genome_0000000`)
+- `defense_systems_tsv`: path to the `***_defense_finder.tsv` file
+- `gff_file`: path to the GFF file corresponding to the genome
+- `genome_fasta_file`: path to the genome FASTA file
+- `protein_fasta_file`: `path to the protein FASTA file
+- (optional) `activity`: filter gene clusters by activity (`defense` or `antidefense`)
+
+
+IGUA can also be run on a single genome by providing all the required files one by one. 
+
+```console 
+$ igua \
+$  --dataset-type defense-finder \
+$   --defense-systems-tsv /path/to/genome-id_defense_finder_systems.tsv \
+$   --gff-file /path/to/genome-id.gff \
+$   --genome-fasta-file /path/to/genome-id.fa \
+$   --protein-fasta--file /path/to/genome-id.faa
+```
+
+#### 🛠️ Running IGUA with custom MMseqs2 parameters
+
+Various MMSeqs2 parameters can be adjusted to control the sensitivity and speed
+of the clustering steps. For more information, see `igua --help-all`. Please note that the default parameters have been optimized for general usage, and changing them may lead to suboptimal results.
 
 ## 💭 Feedback
 
