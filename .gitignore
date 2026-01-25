@@ -118,7 +118,11 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 test_output/
-defense_extraction_errors.log
+tests/fixtures/data
+tests/fixtures/*.tsv
+tests/fixtures/*.h5ad
+tests/fixtures/*.fa
+tests/fixtures/*.json
 
 # Translations
 *.mo
