@@ -52,9 +52,5 @@ class DefenseFinderDataset(FastaGFFDataset):
                 console.print(
                     f"[bold yellow]{'Warning':>12}[/] No 'activity' column found"
                 )
-        else:
-            console.print(
-                f"[bold blue]{'Processing':>12}[/] all {original_count} clusters"
-            )
 
         return df
