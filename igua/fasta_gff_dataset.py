@@ -403,11 +403,8 @@ class GenomeContext:
         genome_fasta: pathlib.Path,
         protein_fasta: pathlib.Path,
         column_mapping: typing.Dict[str, str],
-        system_loader: typing.Callable[
-            [pathlib.Path, Console], pl.DataFrame
-        ],  # Add this
+        system_loader: typing.Callable[[pathlib.Path, Console], pl.DataFrame],
     ):
-
         self.genome_id = genome_id if genome_id else str(uuid.uuid4())[:8]
         self.cluster_tsv = pathlib.Path(cluster_tsv)
         self.gff_file = pathlib.Path(gff_file)
@@ -577,7 +574,7 @@ class GenomeResources:
             return self._invalid_coord(
                 cluster_id,
                 [],
-                f"Missing '{col_map['sys_beg']}' or '{col_map['sys_end']}' columns in systems TSV",
+                f"Missing '{col_map['start_gene']}' or '{col_map['end_gene']}' columns in systems TSV",
             )
 
         try:
@@ -690,8 +687,6 @@ class GenomeResources:
         self,
         output_file: typing.TextIO,
         verbose: bool = False,
-        progress_task: typing.Optional[int] = None,
-        progress: typing.Optional[rich.progress.Progress] = None,
     ) -> typing.List[typing.Tuple[str, int, str]]:
         """Extract genome sequences by streaming FASTA file."""
         coordinates = self.coordinates
@@ -709,12 +704,7 @@ class GenomeResources:
 
         num_contigs = len(contig_groups)
 
-        if progress and progress_task is not None:
-            progress.update(
-                progress_task,
-                description=f"[bold blue]{'Processing':>9}[/] {len(valid_coords)} clusters across {num_contigs} contigs/seqs for [bold cyan]{str(self.context.genome_id)}[/]",
-            )
-        else:
+        if verbose:
             self.console.print(
                 f"[bold blue]{'Processing':>12}[/] {len(valid_coords)} clusters across {num_contigs} contigs/seqs for [bold cyan]{str(self.context.genome_id)}[/]"
             )
@@ -729,24 +719,19 @@ class GenomeResources:
 
             if verbose:
                 self.console.print(
-                    f"[bold blue]{'Loading':>12}[/] contig {seq_id} ({len(contig_groups[seq_id])} clusters) for [bold cyan]{self.context.genome_id}[/]"
+                    f"[bold blue]{'Loading':>12}[/] contig [blue]{seq_id}[/] ({len(contig_groups[seq_id])} clusters) for [bold cyan]{self.context.genome_id}[/]"
                 )
 
             for coord in contig_groups[seq_id]:
-                try:
-                    subseq = sequence[coord.start_coord - 1 : coord.end_coord]
-                    output_file.write(f">{coord.cluster_id}\n{subseq}\n")
+                subseq = sequence[coord.start_coord - 1 : coord.end_coord]
+                output_file.write(f">{coord.cluster_id}\n{subseq}\n")
 
-                    if verbose:
-                        self.console.print(
-                            f"[bold blue]{'Extracted':>12}[/] [cyan]{coord.cluster_id}[/] ({len(subseq)} bp) for [bold cyan]{self.context.genome_id}[/]"
-                        )
-
-                    results.append((coord.cluster_id, len(subseq), coord.fasta_file))
-                except Exception as e:
+                if verbose:
                     self.console.print(
-                        f"[bold red]{'Error':>12}[/] Failed to extract [cyan]{coord.cluster_id}[/] for [bold cyan]{self.context.genome_id}[/]: {e}"
+                        f"[bold blue]{'Extracted':>12}[/] [cyan]{coord.cluster_id}[/] ({len(subseq)} bp) for [bold cyan]{self.context.genome_id}[/]"
                     )
+
+                results.append((coord.cluster_id, len(subseq), coord.fasta_file))
 
             del contig_groups[seq_id]
 
@@ -766,8 +751,6 @@ class GenomeResources:
         coordinates: typing.List[SystemCoordinates],
         output_file: typing.TextIO,
         verbose: bool = False,
-        progress_task: typing.Optional[int] = None,
-        progress: typing.Optional[rich.progress.Progress] = None,
     ) -> typing.Dict[str, int]:
         """Extract protein sequences from coordinates."""
         valid_coords = [c for c in coordinates if c.valid]
@@ -786,12 +769,7 @@ class GenomeResources:
 
         total_genes = len(all_gene_ids)
 
-        if progress and progress_task is not None:
-            progress.update(
-                progress_task,
-                description=f"[bold blue]{'Processing':>9}[/] {total_genes} proteins from {len(valid_coords)} clusters for [bold cyan]{str(self.context.genome_id)}[/]",
-            )
-        else:
+        if verbose:
             self.console.print(
                 f"[bold blue]{'Processing':>12}[/] {total_genes} proteins from {len(valid_coords)} clusters for [bold cyan]{str(self.context.genome_id)}[/]"
             )
@@ -992,10 +970,6 @@ class FastaGFFDataset(BaseDataset):
                 f"[bold blue]{'Processing':>9}[/] gene clusters", total=len(df)
             )
 
-            build_task = None
-            validate_task = None
-            processing_task = None
-
             with open(output, "w") as dst:
                 for row in df.iter_rows(named=True):
                     genome_id = row.get("genome_id") or f"genome_{genome_count:07}"
@@ -1014,86 +988,46 @@ class FastaGFFDataset(BaseDataset):
                         progress.update(task, advance=1)
                         continue
 
-                    try:
-                        with GenomeResources(context, progress.console) as resources:
-                            build_task = progress.add_task(
-                                f"[bold blue]{'Building':>9}[/] cluster coordinates for [bold cyan]{str(genome_id)}[/]",
-                                total=None,
-                            )
+                    with GenomeResources(context, progress.console) as resources:
+                        coordinates = resources.coordinates
+                        valid_count = sum(1 for c in coordinates if c.valid)
 
-                            coordinates = resources.coordinates
-                            progress.remove_task(build_task)
-                            build_task = None
+                        progress.update(
+                            task,
+                            description=f"[bold blue]{'Processing':>9}[/] genome: [bold cyan]{genome_id}[/] - validated {valid_count}/{len(coordinates)} clusters",
+                        )
 
-                            valid_count = sum(1 for c in coordinates if c.valid)
-                            
-                            validate_task = progress.add_task(
-                                f"[bold green]{'Validated':>9}[/] {valid_count}/{len(coordinates)} clusters for [bold cyan]{str(genome_id)}[/]",
-                                total=None,
-                            )
+                        extraction_results = resources.extract_genome_sequences(
+                            dst,
+                            verbose=self.verbose,
+                        )
 
-                            progress.remove_task(validate_task)
-                            validate_task = None
-
-                            processing_task = progress.add_task(
-                                f"[bold blue]{'Extracting':>9}[/] cluster genome sequences for [bold cyan]{str(genome_id)}[/]",
-                                total=None,
-                            )
-
-                            extraction_results = resources.extract_genome_sequences(
-                                dst,
-                                verbose=self.verbose,
-                                progress_task=processing_task,
-                                progress=progress,
-                            )
-
-                            progress.remove_task(processing_task)
-                            processing_task = None
-
-                            contig_groups = {}
-                            for coord in coordinates:
-                                if coord.valid:
-                                    contig_groups.setdefault(coord.seq_id, []).append(
-                                        coord
-                                    )
-                            num_contigs = len(contig_groups)
-
-                            progress.console.print(
-                                f"[bold blue]{'Extracted':>12}[/] {len(extraction_results)} gene clusters across {num_contigs} contigs/seqs for [bold cyan]{context.genome_id}[/]"
-                            )
-
-                            for coord in coordinates:
-                                if coord.valid:
-                                    results.append(
-                                        (
-                                            coord.cluster_id,
-                                            coord.end_coord - coord.start_coord + 1,
-                                            coord.fasta_file,
-                                        )
-                                    )
-
-                            if coordinates:
-                                yield {
-                                    "genome_id": genome_id,
-                                    "protein_fasta": str(context.protein_fasta),
-                                    "coordinates": [c.to_dict() for c in coordinates],
-                                }
-
-                    except Exception as e:
-                        if build_task is not None:
-                            progress.remove_task(build_task)
-                            build_task = None
-                        if validate_task is not None:
-                            progress.remove_task(validate_task)
-                            validate_task = None
-                        if processing_task is not None:
-                            progress.remove_task(processing_task)
-                            processing_task = None
+                        contig_groups = {}
+                        for coord in coordinates:
+                            if coord.valid:
+                                contig_groups.setdefault(coord.seq_id, []).append(coord)
+                        num_contigs = len(contig_groups)
 
                         progress.console.print(
-                            f"[bold red]{'Error':>12}[/] processing [bold cyan]{genome_id}[/]: {e}"
+                            f"[bold blue]{'Extracted':>12}[/] {len(extraction_results)} gene clusters across {num_contigs} contigs/seqs for [bold cyan]{context.genome_id}[/]"
                         )
-                        traceback.print_exc()
+
+                        for coord in coordinates:
+                            if coord.valid:
+                                results.append(
+                                    (
+                                        coord.cluster_id,
+                                        coord.end_coord - coord.start_coord + 1,
+                                        coord.fasta_file,
+                                    )
+                                )
+
+                        if coordinates:
+                            yield {
+                                "genome_id": genome_id,
+                                "protein_fasta": str(context.protein_fasta),
+                                "coordinates": [c.to_dict() for c in coordinates],
+                            }
 
                     progress.update(task, advance=1)
 
@@ -1134,14 +1068,8 @@ class FastaGFFDataset(BaseDataset):
             f"[bold blue]{'Using':>12}[/] cluster metadata file: [magenta]{self.cluster_metadata}[/]"
         )
 
-        try:
-            df = pl.read_csv(self.cluster_metadata, separator="\t")
-            return self._extract_proteins_direct(progress, df, output, representatives)
-        except Exception as e:
-            progress.console.print(
-                f"[bold red]{'Error':>12}[/] reading cluster metadata: {e}"
-            )
-            return {}
+        df = pl.read_csv(self.cluster_metadata, separator="\t")
+        return self._extract_proteins_direct(progress, df, output, representatives)
 
     def _extract_proteins_from_cache(
         self,
@@ -1167,20 +1095,14 @@ class FastaGFFDataset(BaseDataset):
                     description=f"[bold blue]{'Processing':>9}[/] genome: [bold cyan]{genome_id}",
                 )
 
-                try:
-                    proteins = self._extract_proteins_from_metadata(
-                        genome_metadata,
-                        dst,
-                        progress.console,
-                        representatives,
-                        progress,
-                    )
-                    protein_sizes.update(proteins)
-                except Exception as e:
-                    progress.console.print(
-                        f"[bold red]{'Error':>12}[/] processing [bold cyan]{genome_id}[/]: {e}"
-                    )
-                    traceback.print_exc()
+                proteins = self._extract_proteins_from_metadata(
+                    genome_metadata,
+                    dst,
+                    progress.console,
+                    representatives,
+                    verbose=self.verbose,
+                )
+                protein_sizes.update(proteins)
 
                 progress.update(task, advance=1)
 
@@ -1220,30 +1142,23 @@ class FastaGFFDataset(BaseDataset):
                     progress.update(task, advance=1)
                     continue
 
-                try:
-                    with GenomeResources(context, progress.console) as resources:
-                        coordinates = resources.coordinates
+                with GenomeResources(context, progress.console) as resources:
+                    coordinates = resources.coordinates
 
-                        if representatives:
-                            rep_set = (
-                                set(representatives)
-                                if not isinstance(representatives, set)
-                                else representatives
-                            )
-                            coordinates = [
-                                c for c in coordinates if c.cluster_id in rep_set
-                            ]
-
-                        proteins = resources.extract_proteins_from_coordinates(
-                            coordinates, dst, verbose=self.verbose
+                    if representatives:
+                        rep_set = (
+                            set(representatives)
+                            if not isinstance(representatives, set)
+                            else representatives
                         )
-                        protein_sizes.update(proteins)
+                        coordinates = [
+                            c for c in coordinates if c.cluster_id in rep_set
+                        ]
 
-                except Exception as e:
-                    progress.console.print(
-                        f"[bold red]{'Error':>12}[/] processing {genome_id}: {e}"
+                    proteins = resources.extract_proteins_from_coordinates(
+                        coordinates, dst, verbose=self.verbose
                     )
-                    traceback.print_exc()
+                    protein_sizes.update(proteins)
 
                 progress.update(task, advance=1)
 
@@ -1258,7 +1173,7 @@ class FastaGFFDataset(BaseDataset):
         output_file: typing.TextIO,
         console: Console,
         representatives: typing.Optional[typing.Container[str]] = None,
-        progress: typing.Optional[rich.progress.Progress] = None,
+        verbose: bool = False,
     ) -> typing.Dict[str, int]:
         """Extract protein sequences using pre-computed metadata."""
         genome_id = metadata["genome_id"]
@@ -1282,64 +1197,40 @@ class FastaGFFDataset(BaseDataset):
             return {}
 
         tar_cache = TarCache()
-        processing_task = None
 
-        try:
-            all_gene_ids = set()
-            for coord in valid_coords:
-                all_gene_ids.update(coord.genes)
+        all_gene_ids = set()
+        for coord in valid_coords:
+            all_gene_ids.update(coord.genes)
 
-            protein_idx = ProteinIndex(protein_fasta, tar_cache=tar_cache)
-            protein_idx.load_subset(all_gene_ids)
+        protein_idx = ProteinIndex(protein_fasta, tar_cache=tar_cache)
+        protein_idx.load_subset(all_gene_ids)
 
-            total_genes = len(all_gene_ids)
-
-            if progress:
-                processing_task = progress.add_task(
-                    f"[bold blue]{'Processing':>9}[/] {total_genes} proteins from {len(valid_coords)} clusters for [bold cyan]{str(genome_id)}[/]",
-                    total=None,
-                )
-            else:
+        protein_sizes = {}
+        for idx, coord in enumerate(valid_coords, 1):
+            if verbose:
                 console.print(
-                    f"[bold blue]{'Processing':>12}[/] {total_genes} proteins from {len(valid_coords)} clusters for [bold cyan]{str(genome_id)}[/]"
+                    f"[bold blue]{'Processing':>12}[/] cluster {idx}/{len(valid_coords)}: [cyan]{coord.cluster_id}[/] "
+                    f"({len(coord.genes)} genes) for [bold cyan]{str(genome_id)}[/]"
                 )
 
-            protein_sizes = {}
-            for coord in valid_coords:
-                for gene_id in coord.genes:
-                    if seq := protein_idx.get_with_fallback(gene_id):
-                        protein_id = f"{coord.cluster_id}__{gene_id}"
-                        output_file.write(f">{protein_id}\n{seq}\n")
-                        protein_sizes[protein_id] = len(seq)
-                    else:
-                        if self.verbose:
-                            console.print(
-                                f"[bold yellow]{'Warning':>12}[/] Protein {gene_id} not found for cluster [bold cyan]{coord.cluster_id}[/]"
-                            )
+            for gene_id in coord.genes:
+                if seq := protein_idx.get_with_fallback(gene_id):
+                    protein_id = f"{coord.cluster_id}__{gene_id}"
+                    output_file.write(f">{protein_id}\n{seq}\n")
+                    protein_sizes[protein_id] = len(seq)
+                else:
+                    console.print(
+                        f"[bold yellow]{'Warning':>12}[/] Protein {gene_id} not found for cluster [bold cyan]{coord.cluster_id}[/]"
+                    )
 
-            if processing_task is not None:
-                progress.remove_task(processing_task)
-                processing_task = None
+        tar_cache.cleanup()
 
-            console.print(
-                f"[bold blue]{'Extracted':>12}[/] {len(protein_sizes)} proteins from "
-                f"{len(valid_coords)} clusters for [bold cyan]{str(genome_id)}[/]"
-            )
+        console.print(
+            f"[bold blue]{'Extracted':>12}[/] {len(protein_sizes)} proteins from "
+            f"{len(valid_coords)} clusters for [bold cyan]{str(genome_id)}[/]"
+        )
 
-            return protein_sizes
-
-        except Exception as e:
-            if processing_task is not None:
-                progress.remove_task(processing_task)
-                processing_task = None
-
-            console.print(
-                f"[bold red]{'Error':>12}[/] Fatal error for {genome_id}: {e}"
-            )
-            traceback.print_exc()
-            return {}
-        finally:
-            tar_cache.cleanup()
+        return protein_sizes
 
     def _log_protein_summary(
         self,
@@ -1350,9 +1241,9 @@ class FastaGFFDataset(BaseDataset):
         """Log summary for protein extraction."""
         rep_count = "all"
         if representatives:
-            try:
+            if hasattr(representatives, "__len__"):
                 rep_count = str(len(representatives))
-            except TypeError:
+            else:
                 rep_count = "specified"
 
         progress.console.print(

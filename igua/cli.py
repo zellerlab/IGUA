@@ -595,6 +595,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
 
         # create appropriate dataset handler
         dataset = create_dataset(progress=progress, args=args)
+        dataset.verbose = args.verbose
 
         # extract raw sequences
         clusters_fna = workdir.joinpath("clusters.fna")
