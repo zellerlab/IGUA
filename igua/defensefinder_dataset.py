@@ -19,7 +19,8 @@ class DefenseFinderDataset(FastaGFFDataset):
 
         Args:
             inputs: List of input file paths (typically metadata TSV).
-            activity_filter: Filter by activity type ('all', 'defense', 'antidefense').
+            activity_filter: Filter by activity type. Options: 'all',
+                'defense', 'antidefense'.
         """
         defensefinder_mapping = {
             "cluster_id": "sys_id",
@@ -34,7 +35,15 @@ class DefenseFinderDataset(FastaGFFDataset):
     def _load_and_filter_systems(
         self, tsv_path: pathlib.Path, console: Console
     ) -> pl.DataFrame:
-        """Load DefenseFinder systems with optional activity filtering."""
+        """Load DefenseFinder systems with activity filtering.
+        
+        Args:
+            tsv_path: Path to the DefenseFinder systems TSV file.
+            console: Rich console for logging output.
+            
+        Returns:
+            Filtered Polars DataFrame containing system data.
+        """
         df = pl.read_csv(tsv_path, separator="\t")
         original_count = len(df)
 

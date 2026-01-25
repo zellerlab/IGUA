@@ -5,7 +5,6 @@ import pathlib
 import pickle
 import re
 import tarfile
-import traceback
 import typing
 import uuid
 from dataclasses import asdict, dataclass
@@ -25,6 +24,7 @@ class TarCache:
     """Cache for extracted tar members to avoid repeated extraction."""
 
     def __init__(self):
+        """Initialize empty cache."""
         self._cache: typing.Dict[str, bytes] = {}
         self._tar_handles: typing.Dict[pathlib.Path, tarfile.TarFile] = {}
 
@@ -81,10 +81,10 @@ def _parse_tar_path(
 def smart_open(
     path: pathlib.Path, mode: str = "rb", tar_cache: typing.Optional[TarCache] = None
 ) -> typing.BinaryIO:
-    """Open a file, handling both regular files and files inside tar archives.
+    """Open file, handling regular files and tar archives.
 
     Uses caching for tar members to avoid repeated extraction.
-    Supports gzip compression for both regular files and tar members.
+    Supports gzip compression for both file types.
 
     Args:
         path: Path to file (may be inside tar archive).
@@ -184,9 +184,10 @@ class GFFIndex:
     def _build_index(self):
         """Build comprehensive ID index from GFF file.
 
-        Creates multiple lookup variants for each gene/CDS feature including
-        ID, locus_tag, Name, gene, old_locus_tag, and protein_id attributes.
-        Also creates prefixed variants (gene-, cds-) and underscore/tilde variants.
+        Creates multiple lookup variants for each gene/CDS feature
+        including ID, locus_tag, Name, gene, old_locus_tag, and
+        protein_id attributes. Also creates prefixed variants
+        (gene-, cds-) and underscore/tilde variants.
         """
         with smart_open(self.path, tar_cache=self._tar_cache) as reader:
             for line in io.TextIOWrapper(reader, encoding="utf-8"):
@@ -290,13 +291,7 @@ def read_fasta(
 
 
 class ProteinIndex:
-    """Lazy-loading protein sequence index for efficient lookup.
-
-    Only loads proteins as needed, suitable for large FASTA files.
-
-    Attributes:
-        path: Path to the protein FASTA file.
-    """
+    """Lazy-loading protein sequence index for efficient lookup."""
 
     def __init__(
         self, protein_fasta: pathlib.Path, tar_cache: typing.Optional[TarCache] = None
@@ -353,7 +348,14 @@ class ProteinIndex:
         return self._sequences.get(protein_id)
 
     def get_with_fallback(self, gene_id: str) -> typing.Optional[str]:
-        """Get protein sequence with fallback header search."""
+        """Get protein sequence with fallback to header search.
+
+        Args:
+            gene_id: Gene identifier to search for.
+
+        Returns:
+            Protein sequence if found, None otherwise.
+        """
         seq = self.get(gene_id)
         if seq:
             return seq
@@ -393,7 +395,7 @@ class ProteinIndex:
 
 
 class GenomeContext:
-    """Immutable data container for genome/MAG file paths and metadata."""
+    """Data container for genome/MAG file paths and metadata."""
 
     def __init__(
         self,
@@ -405,6 +407,17 @@ class GenomeContext:
         column_mapping: typing.Dict[str, str],
         system_loader: typing.Callable[[pathlib.Path, Console], pl.DataFrame],
     ):
+        """Initialize genome context.
+
+        Args:
+            genome_id: Genome identifier (generates UUID if None).
+            cluster_tsv: Path to cluster metadata TSV file.
+            gff_file: Path to GFF annotation file.
+            genome_fasta: Path to genome FASTA file.
+            protein_fasta: Path to protein FASTA file.
+            column_mapping: Column name mapping for TSV parsing.
+            system_loader: Function to load and filter systems.
+        """
         self.genome_id = genome_id if genome_id else str(uuid.uuid4())[:8]
         self.cluster_tsv = pathlib.Path(cluster_tsv)
         self.gff_file = pathlib.Path(gff_file)
@@ -423,8 +436,8 @@ class GenomeContext:
             ]
             if not path.exists() and "tar.gz" not in str(path)
         ]
-
     def __repr__(self):
+        """Return string representation."""
         return (
             f"<GenomeContext "
             f"genome_id={self.genome_id!r} "
@@ -432,18 +445,16 @@ class GenomeContext:
         )
 
     def is_valid(self) -> bool:
+        """Check if all required files exist.
+
+        Returns:
+            True if all files are present, False otherwise.
+        """
         return len(self.missing_files) == 0
 
 
 class GenomeResources:
-    """Manages lazy-loading and caching of genome resources.
-
-    Format-agnostic - uses adapter for format-specific operations.
-
-    Attributes:
-        context: Genome context with file paths and adapter.
-        console: Rich console for logging.
-    """
+    """Manages lazy-loading and caching of genome resources."""
 
     def __init__(self, context: GenomeContext, console: Console):
         """Initialize genome resources manager.
@@ -461,17 +472,17 @@ class GenomeResources:
         self._tar_cache = TarCache()
 
     def __enter__(self):
+        """Enter context manager."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager and cleanup resources."""
         self._tar_cache.cleanup()
         return False
 
     @property
     def cluster_df(self) -> pl.DataFrame:
-        """Load and filter clusters TSV (lazy-loaded, cached).
-
-        Delegates format-specific logic to adapter.
+        """Load and filter clusters TSV.
 
         Returns:
             Polars DataFrame with filtered systems.
@@ -508,7 +519,7 @@ class GenomeResources:
 
     @property
     def protein_idx(self) -> ProteinIndex:
-        """Get protein index (lazy-loaded, cached).
+        """Get protein index.
 
         Returns:
             ProteinIndex instance.
@@ -521,7 +532,7 @@ class GenomeResources:
 
     @property
     def gff_db(self) -> GFFIndex:
-        """Get GFF index (lazy-loaded, cached).
+        """Get GFF index.
 
         Returns:
             GFFIndex instance.
@@ -532,7 +543,7 @@ class GenomeResources:
 
     @property
     def coordinates(self) -> typing.List[SystemCoordinates]:
-        """Build and cache system coordinates (lazy-loaded, cached).
+        """Build and cache system coordinates.
 
         Returns:
             List of SystemCoordinates for all systems.
@@ -542,10 +553,10 @@ class GenomeResources:
         return self._coordinates_cache
 
     def _build_coordinates(self) -> typing.List[SystemCoordinates]:
-        """Build coordinates for all clusters.
+        """Parse coordinates from cluster DataFrame.
 
         Returns:
-            List of SystemCoordinates.
+            List of SystemCoordinates for each cluster.
         """
         coordinates = []
         for row in self.cluster_df.iter_rows(named=True):
@@ -688,7 +699,17 @@ class GenomeResources:
         output_file: typing.TextIO,
         verbose: bool = False,
     ) -> typing.List[typing.Tuple[str, int, str]]:
-        """Extract genome sequences by streaming FASTA file."""
+        """Extract nucleotide sequences for gene clusters.
+
+        Streams FASTA file to minimize memory usage.
+
+        Args:
+            output_file: Output file handle for writing sequences.
+            verbose: Enable detailed logging.
+
+        Returns:
+            List of (cluster_id, sequence_length, fasta_file) tuples.
+        """
         coordinates = self.coordinates
         valid_coords = [c for c in coordinates if c.valid]
 
@@ -752,7 +773,16 @@ class GenomeResources:
         output_file: typing.TextIO,
         verbose: bool = False,
     ) -> typing.Dict[str, int]:
-        """Extract protein sequences from coordinates."""
+        """Extract protein sequences from gene coordinates.
+
+        Args:
+            coordinates: List of cluster coordinates.
+            output_file: Output file handle for writing sequences.
+            verbose: Enable detailed logging.
+
+        Returns:
+            Dictionary mapping protein_id to sequence length.
+        """
         valid_coords = [c for c in coordinates if c.valid]
 
         if not valid_coords:
@@ -796,22 +826,14 @@ class GenomeResources:
 
 
 class ClusterMetadataCache:
-    """Manages caching of cluster metadata to avoid redundant processing.
-
-    Uses batched pickle format for memory-efficient serialization/deserialization.
-
-    Attributes:
-        cache_path: Path to cache file.
-        batch_size: Number of genomes per batch (default 500).
-    """
+    """Manages caching of cluster metadata."""
 
     def __init__(self, cache_path: pathlib.Path, batch_size: int = 500):
         """Initialize metadata cache.
 
         Args:
             cache_path: Path to cache file.
-            batch_size: Number of genomes to batch together.
-            _metadata: Metadata cache.
+            batch_size: Number of genomes per batch.
         """
         self.cache_path = cache_path
         self.batch_size = batch_size
@@ -821,7 +843,7 @@ class ClusterMetadataCache:
         """Save genomes in batches to reduce memory usage.
 
         Args:
-            genomes_iterator: Iterator yielding genome metadata dictionaries.
+            genomes_iterator: Iterator yielding genome metadata dicts.
             total: Total number of genomes (for compression decision).
         """
         batches = []
@@ -903,7 +925,7 @@ class ClusterMetadataCache:
 
 
 class FastaGFFDataset(BaseDataset):
-    """FastaGFF dataset class."""
+    """Dataset for extracting sequences from FASTA/GFF files."""
 
     def __init__(
         self,
@@ -913,8 +935,10 @@ class FastaGFFDataset(BaseDataset):
         """Initialize the FastaGFFDataset class.
 
         Args:
-            inputs: List of input paths (metadata TSV or individual files).
-            column_mapping: Custom column mapping. If None, uses default generic mapping.
+            inputs: List of input paths (metadata TSV or individual
+                files).
+            column_mapping: Custom column mapping. If None, uses
+                default generic mapping.
         """
         super().__init__(inputs)
 
@@ -931,6 +955,15 @@ class FastaGFFDataset(BaseDataset):
         self.cluster_metadata = inputs[0]
 
     def _create_genome_context(self, row: typing.Dict, genome_id: str) -> GenomeContext:
+        """Create GenomeContext from metadata row.
+
+        Args:
+            row: Dictionary with file paths from metadata TSV.
+            genome_id: Genome identifier.
+
+        Returns:
+            GenomeContext instance.
+        """
         return GenomeContext(
             genome_id=genome_id,
             cluster_tsv=pathlib.Path(row["cluster_tsv"]),
@@ -944,7 +977,15 @@ class FastaGFFDataset(BaseDataset):
     def _load_and_filter_systems(
         self, tsv_path: pathlib.Path, console: Console
     ) -> pl.DataFrame:
-        """Load systems TSV without filtering (generic behavior)."""
+        """Load systems TSV file.
+
+        Args:
+            tsv_path: Path to systems TSV.
+            console: Rich console for logging.
+
+        Returns:
+            Polars DataFrame with system data.
+        """
         df = pl.read_csv(tsv_path, separator="\t")
         return df
 
@@ -953,7 +994,17 @@ class FastaGFFDataset(BaseDataset):
         progress: rich.progress.Progress,
         output: pathlib.Path,
     ) -> pd.DataFrame:
-        """Extracts nucleotide sequences from gene clusters and caches metadata."""
+        """Extract nucleotide sequences from gene clusters.
+
+        Caches metadata for later protein extraction.
+
+        Args:
+            progress: Rich progress bar instance.
+            output: Path to output FASTA file.
+
+        Returns:
+            DataFrame with cluster_id, cluster_length, filename.
+        """
         progress.console.print(
             f"[bold blue]{'Using':>12}[/] cluster metadata file: [magenta]{self.cluster_metadata}[/]"
         )
@@ -1054,7 +1105,19 @@ class FastaGFFDataset(BaseDataset):
         output: pathlib.Path,
         representatives: typing.Container[str],
     ) -> typing.Dict[str, int]:
-        """Extracts protein sequences using cached metadata."""
+        """Extract protein sequences from representative clusters.
+
+        Uses cached metadata from sequence extraction if available.
+
+        Args:
+            progress: Rich progress bar instance.
+            inputs: Input file paths (unused, uses cached metadata).
+            output: Path to output protein FASTA file.
+            representatives: Container of representative cluster IDs.
+
+        Returns:
+            Dictionary mapping protein_id to sequence length.
+        """
         if self._metadata_cache_path and self._metadata_cache_path.exists():
             progress.console.print(
                 f"[bold blue]{'Using':>12}[/] cached metadata from sequence extraction"
@@ -1077,7 +1140,16 @@ class FastaGFFDataset(BaseDataset):
         output: pathlib.Path,
         representatives: typing.Container[str],
     ) -> typing.Dict[str, int]:
-        """Extract proteins using cached metadata with streaming."""
+        """Extract proteins using cached metadata.
+
+        Args:
+            progress: Rich progress bar instance.
+            output: Path to output FASTA file.
+            representatives: Container of representative cluster IDs.
+
+        Returns:
+            Dictionary mapping protein_id to sequence length.
+        """
         cache = ClusterMetadataCache(self._metadata_cache_path)
         genome_count = sum(1 for _ in cache.iter_genomes())
 
@@ -1118,7 +1190,17 @@ class FastaGFFDataset(BaseDataset):
         output: pathlib.Path,
         representatives: typing.Container[str],
     ) -> typing.Dict[str, int]:
-        """Direct protein extraction without cache (fallback)."""
+        """Extract proteins directly from TSV without cache.
+
+        Args:
+            progress: Rich progress bar instance.
+            df: DataFrame with genome metadata.
+            output: Path to output FASTA file.
+            representatives: Container of representative cluster IDs.
+
+        Returns:
+            Dictionary mapping protein_id to sequence length.
+        """
         protein_sizes = {}
 
         with open(output, "w") as dst:
@@ -1175,7 +1257,19 @@ class FastaGFFDataset(BaseDataset):
         representatives: typing.Optional[typing.Container[str]] = None,
         verbose: bool = False,
     ) -> typing.Dict[str, int]:
-        """Extract protein sequences using pre-computed metadata."""
+        """Extract proteins from pre-computed genome metadata.
+
+        Args:
+            metadata: Dictionary with genome_id, protein_fasta, and
+                coordinates.
+            output_file: Output file handle for writing sequences.
+            console: Rich console for logging.
+            representatives: Optional container of representative IDs.
+            verbose: Enable per-cluster logging.
+
+        Returns:
+            Dictionary mapping protein_id to sequence length.
+        """
         genome_id = metadata["genome_id"]
         protein_fasta = pathlib.Path(metadata["protein_fasta"])
         coordinates = [SystemCoordinates.from_dict(c) for c in metadata["coordinates"]]
@@ -1238,7 +1332,13 @@ class FastaGFFDataset(BaseDataset):
         results: typing.Dict,
         representatives: typing.Optional[typing.Container[str]],
     ):
-        """Log summary for protein extraction."""
+        """Log summary of protein extraction results.
+
+        Args:
+            progress: Rich progress bar instance.
+            results: Dictionary of extracted proteins.
+            representatives: Container of representative cluster IDs.
+        """
         rep_count = "all"
         if representatives:
             if hasattr(representatives, "__len__"):
