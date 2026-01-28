@@ -10,7 +10,8 @@ import typing
 import sys
 
 import anndata
-import rich
+import rich.console
+import rich.progress
 import numpy
 import pandas
 import scipy.sparse
@@ -450,6 +451,29 @@ def get_protein_representative(
     subdb.to_fasta(fasta_path)
 
 
+def report_completion(
+    start_time: datetime.datetime,
+    end_time: datetime.datetime,
+    console: rich.console.Console,
+) -> None:
+    end_time_str = end_time.strftime("%Y-%m-%d %H:%M:%S")
+    total_time = end_time - start_time
+
+    total_seconds = int(total_time.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    if hours > 0:
+        time_str = f"{hours}h {minutes}m {seconds}s"
+    elif minutes > 0:
+        time_str = f"{minutes}m {seconds}s"
+    else:
+        time_str = f"{seconds}s"
+
+    console.print(f"[bold blue]{'Completed':>12}[/] {end_time_str}")
+    console.print(f"[bold green]{'Total time':>12}[/] {time_str}")
+
+
 def main(argv: typing.Optional[typing.List[str]] = None) -> int:
     # build parser and get arguments
     parser = build_parser()
@@ -457,6 +481,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
         argcomplete.autocomplete(parser)
     args = parser.parse_args(argv)
 
+    # measure start of process
     start_time = datetime.datetime.now()
     start_time_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -572,22 +597,8 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
                 f"[bold green]{'Saved':>12}[/] protein features to {str(args.features)!r}"
             )
 
+    # report runtime before exiting
     end_time = datetime.datetime.now()
-    end_time_str = end_time.strftime("%Y-%m-%d %H:%M:%S")
-    total_time = end_time - start_time
-
-    total_seconds = int(total_time.total_seconds())
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-
-    if hours > 0:
-        time_str = f"{hours}h {minutes}m {seconds}s"
-    elif minutes > 0:
-        time_str = f"{minutes}m {seconds}s"
-    else:
-        time_str = f"{seconds}s"
-
-    progress.console.print(f"[bold blue]{'Completed':>12}[/] {end_time_str}")
-    progress.console.print(f"[bold green]{'Total time':>12}[/] {time_str}")
+    report_completion(start_time, end_time, progress.console)
 
     return 0
