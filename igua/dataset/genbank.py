@@ -30,12 +30,17 @@ class GenBankDataset(BaseDataset):
         output: pathlib.Path,
     ) -> pd.DataFrame:
         """Extracts nucleotide sequences from GenBank files.
+        
         Args:
             progress (rich.progress.Progress): Progress bar for tracking progress.
             inputs (typing.List[pathlib.Path]): List of input GenBank files.
             output (pathlib.Path): Output file path for the extracted sequences.
+        
         Returns:
-            pd.DataFrame: DataFrame containing the extracted sequences.
+            `pandas.DataFrame`: DataFrame containing the extracted sequences 
+            and metadata with columns ``cluster_id``, ``cluster_length`` and
+            ``filename``.
+
         """
         data = []
         done = set()
@@ -71,17 +76,23 @@ class GenBankDataset(BaseDataset):
         progress: rich.progress.Progress,
         output: pathlib.Path,
         representatives: typing.Container[str],
-    ) -> typing.Dict[str, int]:
+    ) -> pd.DataFrame:
         """Extracts protein sequences from GenBank files.
+        
         Args:
             progress (rich.progress.Progress): Progress bar for tracking progress.
             inputs (typing.List[pathlib.Path]): List of input GenBank files.
             output (pathlib.Path): Output file path for the extracted protein sequences.
             representatives (typing.Container[str]): Set of representative cluster IDs.
+        
         Returns:
-            typing.Dict[str, int]: Dictionary containing protein IDs and their sizes.
+            `pandas.DataFrame`: DataFrame containing the extracted proteins 
+            and metadata with columns ``cluster_id``, ``protein_id``,
+            ``protein_length`` and ``filename``.
+
         """
-        protein_sizes = {}
+        data = []
+        done = set()
         with output.open("w") as dst:
             for input_path in self.inputs:
                 task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
@@ -113,11 +124,20 @@ class GenBankDataset(BaseDataset):
                                 else:
                                     translation = qualifier.value.rstrip("*")
                                 protein_id = "{}_{}".format(record.name, i)
-                                if protein_id not in protein_sizes:
+                                if protein_id not in done:
                                     self.write_fasta(dst, protein_id, translation)
-                                    protein_sizes[protein_id] = len(translation)
+                                    data.append((record.name, protein_id, len(translation), input_path))
+                                    done.add(protein_id)
+
                 progress.remove_task(task)
-        progress.console.print(
-            f"[bold green]{'Extracted':>12}[/] {len(protein_sizes):,} proteins from {len(representatives):,} nucleotide representative"
+
+        df = pd.DataFrame(
+            data=data, 
+            columns=["cluster_id", "protein_id", "protein_length", "filename"],
         )
-        return protein_sizes
+        # df.set_index("protein_id", inplace=True)
+        
+        progress.console.print(
+            f"[bold green]{'Extracted':>12}[/] {len(df):,} proteins from {len(representatives):,} nucleotide representative"
+        )
+        return df

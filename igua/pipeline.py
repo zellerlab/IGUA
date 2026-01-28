@@ -103,29 +103,33 @@ class ClusteringPipeline:
         # check distances are in [0, 1]
         return numpy.clip(distance_vector, 0.0, 1.0, out=distance_vector)
 
-
     def make_compositions(
         self,
         protein_clusters: pandas.DataFrame,
         representatives: typing.Dict[str, int],
         protein_representatives: typing.Dict[str, int],
-        protein_sizes: typing.Dict[str, int],
     ) -> anndata.AnnData:
+        # index the proteins by protein ID
+        lengths = protein_clusters.set_index("protein_id")["protein_length"]
+
+        # create the empty compositional matrix
         compositions = scipy.sparse.dok_matrix(
-            (len(representatives), len(protein_representatives)), dtype=numpy.int32
+            (len(representatives), len(protein_representatives)), 
+            dtype=numpy.int32
         )
 
+        # Build compositional matrix using protein lengths as weights
         task = self.progress.add_task(
-            description=f"[bold blue]{'Working':>9}[/]", total=len(protein_clusters)
+            description=f"[bold blue]{'Working':>9}[/]", 
+            total=len(protein_clusters)
         )
         for row in self.progress.track(protein_clusters.itertuples(), task_id=task):
             cluster_index = representatives[row.cluster_id]
             prot_index = protein_representatives[row.protein_representative]
-            compositions[cluster_index, prot_index] += protein_sizes[
-                row.protein_representative
-            ]
+            compositions[cluster_index, prot_index] += lengths.loc[row.protein_representative]
         self.progress.remove_task(task)
 
+        # Build the annotated data matrix
         sorted_representatives = sorted(representatives, key=representatives.__getitem__)
         sorted_protein_representatives = sorted(
             protein_representatives, key=protein_representatives.__getitem__
@@ -137,7 +141,7 @@ class ClusteringPipeline:
             ),
             var=pandas.DataFrame(
                 index=pandas.Index(sorted_protein_representatives, name="protein_id"),
-                data=dict(size=[protein_sizes[x] for x in sorted_protein_representatives]),
+                data=dict(size=lengths.loc[sorted_protein_representatives]),
             ),
         )
 
@@ -228,19 +232,14 @@ class ClusteringPipeline:
                 columns=["protein_representative", "protein_id"]
             )
 
+            # record protein lengths and source cluster
+            prot_clusters = pandas.merge(
+                prot_clusters, 
+                protein_sizes[["cluster_id", "protein_id", "protein_length"]], 
+                on="protein_id"
+            )
+       
             # extract protein representatives
-            # FIXME: use inheritance
-            if isinstance(dataset, DefenseFinderDataset) or isinstance(dataset, FastaGFFDataset):
-                # double underscore for DefenseFinder and FastaGFF
-                prot_clusters["cluster_id"] = (
-                    prot_clusters["protein_id"].str.rsplit("__", n=1).str[0]
-                )
-            else:
-                # traditional format: use single underscore delimiter
-                prot_clusters["cluster_id"] = (
-                    prot_clusters["protein_id"].str.rsplit("_", n=1).str[0]
-                )
-
             protein_representatives = {
                 x: i
                 for i, x in enumerate(
@@ -248,7 +247,8 @@ class ClusteringPipeline:
                 )
             }
             self.console.print(
-                f"[bold green]{'Found':>12}[/] {len(protein_representatives)} protein representatives for {len(prot_clusters)} proteins"
+                f"[bold green]{'Found':>12}[/] {len(protein_representatives)} "
+                f"protein representatives for {len(prot_clusters)} proteins"
             )
 
             # build weighted compositional array
@@ -259,12 +259,12 @@ class ClusteringPipeline:
                 prot_clusters,
                 representatives,
                 protein_representatives,
-                protein_sizes,
             )
 
             # compute and ponderate distances
             self.console.print(
-                f"[bold blue]{'Computing':>12}[/] pairwise distance based on protein composition"
+                f"[bold blue]{'Computing':>12}[/] pairwise distance based on "
+                "protein composition"
             )
             distance_vector = self.compute_distances(
                 compositions.X, 
@@ -274,7 +274,8 @@ class ClusteringPipeline:
 
             # run hierarchical clustering
             self.console.print(
-                f"[bold blue]{'Clustering':>12}[/] gene clusters using {self.params.clustering_method} linkage"
+                f"[bold blue]{'Clustering':>12}[/] gene clusters using "
+                f"{self.params.clustering_method} linkage"
             )
             Z = linkage(distance_vector, method=self.params.clustering_method)
             flat = fcluster(Z, criterion="distance", t=self.params.clustering_distance)
@@ -304,7 +305,8 @@ class ClusteringPipeline:
             )
 
         self.console.print(
-            f"[bold green]{'Built':>12}[/] {len(gcfs3.gcf_id.unique())} GCFs from {len(input_sequences)} initial clusters"
+            f"[bold green]{'Built':>12}[/] {len(gcfs3.gcf_id.unique())} "
+            f"GCFs from {len(input_sequences)} initial clusters"
         )
 
         # build GCFs based on flat clustering

@@ -34,7 +34,7 @@ class BaseDataset(abc.ABC):
         progress: rich.progress.Progress,
         output: pathlib.Path,
         representatives: typing.Container[str],
-    ) -> typing.Dict[str, int]:
+    ) -> pd.DataFrame:
         pass
 
     def write_fasta(self, file: typing.TextIO, name: str, sequence: str) -> None:

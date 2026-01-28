@@ -551,7 +551,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
 
         # save compositions
         if args.compositions is not None:
-            gcf_representatives = result.gcfs["gcf_representative"].unique()
+            gcf_representatives = result.gcfs["gcf_representative"].unique().tolist()
             representatives_compositions = anndata.AnnData(
                 X=result.compositions[gcf_representatives].X,
                 var=result.compositions.var,
