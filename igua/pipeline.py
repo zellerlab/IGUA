@@ -163,7 +163,7 @@ class ClusteringPipeline:
 
         # create initial sequence database
         self.console.print(
-            f"[bold blue]{'Starting':>12}[/] nucleotide deduplication step with [purple]mmseqs[/]"
+            f"[bold blue]{'Starting':>12}[/] nucleotide deduplication step with [purple]MMSeqs2[/]"
         )
         db = Database.create(self.mmseqs, clusters_fna)
         step1 = db.cluster(self.workdir / "step1.db", **self.params.nuc1)

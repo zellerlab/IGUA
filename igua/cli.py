@@ -515,11 +515,9 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
         mmseqs = MMSeqs(progress=progress, threads=args.jobs, tempdir=workdir)
         try:
             v = mmseqs.version()
-            progress.console.print(f"[bold green]{'Using':>12}[/] MMseqs2 {v!r}")
+            progress.console.print(f"[bold green]{'Using':>12}[/] [purple]MMSeqs2[/] version {v!r}")
         except RuntimeError:
-            progress.console.print(
-                f"[bold red]{'Failed':>12}[/] to locate MMseqs2 binary"
-            )
+            progress.console.print(f"[bold red]{'Failed':>12}[/] to locate [purple]MMSeqs2[/] binary")
             return errno.ENOENT
 
         # create a pipeline with the configuration from the CLI
@@ -532,7 +530,6 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
 
         # create appropriate dataset handler
         dataset = create_dataset(progress=progress, args=args)
-        dataset.verbose = args.verbose
 
         # run pipeline and retrieve GCFs
         result = pipeline.run(
