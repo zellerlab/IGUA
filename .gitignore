@@ -62,6 +62,7 @@ dkms.conf
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
+.pytest_cache/
 *.py[cod]
 *$py.class
 
@@ -116,6 +117,12 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+test_output/
+tests/fixtures/data
+tests/fixtures/*.tsv
+tests/fixtures/*.h5ad
+tests/fixtures/*.fa
+tests/fixtures/*.json
 
 # Translations
 *.mo
