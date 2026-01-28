@@ -527,8 +527,10 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
     start_time = datetime.datetime.now()
     start_time_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
 
+    # extract MMseqs paraemeters from command line
     params_nuc1, params_nuc2, params_prot = get_mmseqs_params(args)
 
+    # use user provided workdir or create a new one in `tempfile`
     if args.workdir is None:
         workdir = pathlib.Path(tempfile.mkdtemp())
     else:
@@ -646,7 +648,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
             )
 
             protein_sizes = dataset.extract_proteins(
-                progress, args.input, proteins_faa, representatives
+                progress, proteins_faa, representatives
             )
 
             if not proteins_faa.exists() or proteins_faa.stat().st_size == 0:
