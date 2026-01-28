@@ -1101,7 +1101,6 @@ class FastaGFFDataset(BaseDataset):
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        inputs: typing.List[pathlib.Path],
         output: pathlib.Path,
         representatives: typing.Container[str],
     ) -> typing.Dict[str, int]:
