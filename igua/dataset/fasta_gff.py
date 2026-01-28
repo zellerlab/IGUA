@@ -14,7 +14,7 @@ import polars as pl
 import rich.progress
 from rich.console import Console
 
-from .base_dataset import BaseDataset
+from .base import BaseDataset
 
 
 _GZIP_MAGIC = b"\x1f\x8b"

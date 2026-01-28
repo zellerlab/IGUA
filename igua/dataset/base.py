@@ -6,7 +6,7 @@ import Bio.Seq
 import pandas as pd
 import rich.progress
 
-from .mmseqs import Database, MMSeqs
+from ..mmseqs import Database, MMSeqs
 
 
 class BaseDataset(abc.ABC):

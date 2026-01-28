@@ -130,17 +130,18 @@ COMMANDS = {
   "countkmer",
 }
 
+
 class MMSeqs(object):
     """A wrapper around an ``mmseqs`` binary and common parameters.
     """
 
     def __init__(
         self, 
-        binary="mmseqs", 
-        progress=None, 
-        threads=None,
-        tempdir=None,
-    ):
+        binary: str = "mmseqs", 
+        progress: typing.Optional[rich.progress.Progress] = None, 
+        threads: typing.Optional[int] = None,
+        tempdir: typing.Optional[str] = None,
+    ) -> None:
         self.binary = binary
         self.progress = progress
         self.threads = threads

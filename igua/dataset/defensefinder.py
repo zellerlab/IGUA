@@ -4,7 +4,7 @@ import typing
 import polars as pl
 from rich.console import Console
 
-from .fasta_gff_dataset import FastaGFFDataset
+from .fasta_gff import FastaGFFDataset
 
 
 class DefenseFinderDataset(FastaGFFDataset):

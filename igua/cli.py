@@ -27,11 +27,10 @@ except ImportError:
     from argparse import HelpFormatter
 
 from . import __version__
-from .base_dataset import BaseDataset
-from .genbank_dataset import GenBankDataset
-from .fasta_gff_dataset import FastaGFFDataset
-from .defensefinder_dataset import DefenseFinderDataset
-
+from .dataset.base import BaseDataset
+from .dataset.genbank import GenBankDataset
+from .dataset.fasta_gff import FastaGFFDataset
+from .dataset.defensefinder import DefenseFinderDataset
 from .mmseqs import MMSeqs, Database, Clustering
 from .hca import manhattan, linkage
 

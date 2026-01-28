@@ -7,7 +7,7 @@ import gb_io
 import pandas as pd
 import rich.progress
 
-from .base_dataset import BaseDataset
+from .base import BaseDataset
 
 
 _GZIP_MAGIC = b"\x1f\x8b"
