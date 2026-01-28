@@ -465,21 +465,15 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
 
     # use user provided workdir or create a new one in `tempfile`
     if args.workdir is None:
-        workdir = pathlib.Path(tempfile.mkdtemp())
+        tempdir = tempfile.TemporaryDirectory(prefix="igua-")
     else:
-        workdir = pathlib.Path(args.workdir)
-        workdir.mkdir(parents=True, exist_ok=True)
+        tempdir = pathlib.Path(args.workdir)
+        tempdir.mkdir(parents=True, exist_ok=True)
+        tempdir = tempfile.TemporaryDirectory(prefix="igua-", dir=workdir)
 
     # validate individual file arguments
-    individual_args = [
-        args.cluster_tsv,
-        args.gff_file,
-        args.genome_fasta,
-        args.protein_fasta,
-    ]
-
+    individual_args = [args.cluster_tsv, args.gff_file, args.genome_fasta, args.protein_fasta]
     using_individual_files = any(individual_args)
-
     if using_individual_files:
         if not all(individual_args):
             parser.error(
@@ -504,6 +498,9 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
         parser.error("Input files (-i/--input) are required")
 
     with contextlib.ExitStack() as ctx:
+        # acquire temporary folder
+        workdir = pathlib.Path(ctx.enter_context(tempdir))
+
         # prepare progress bar
         progress = ctx.enter_context(
             rich.progress.Progress(

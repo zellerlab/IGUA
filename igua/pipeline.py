@@ -153,16 +153,6 @@ class ClusteringPipeline:
         *,
         clustering: bool = True,
     ):
-        # check mmseqs version
-        try:
-            v = self.mmseqs.version()
-            self.console.print(f"[bold green]{'Using':>12}[/] MMseqs2 {v!r}")
-        except RuntimeError:
-            self.console.print(
-                f"[bold red]{'Failed':>12}[/] to locate MMseqs2 binary"
-            )
-            return errno.ENOENT
-
         # extract raw sequences
         clusters_fna = self.workdir / "clusters.fna"
         self.console.print(f"[bold blue]{'Loading':>12}[/] input clusters")
