@@ -37,11 +37,11 @@ from .mmseqs import MMSeqs, Database, Clustering
 from .pipeline import ClusteringParameters, ClusteringPipeline
 
 
-def build_parser() -> argparse.ArgumentParser:
-    show_all = '--help-all' in sys.argv
+def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
+    show_all = '--help-all' in argv
 
     if show_all:
-        sys.argv = [arg if arg != '--help-all' else '--help' for arg in sys.argv]
+        argv = [arg if arg != '--help-all' else '--help' for arg in argv]
 
     def help_text(text: str) -> str:
         return text if show_all else argparse.SUPPRESS
@@ -64,12 +64,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="help",
     )
 
-    if not show_all:
-        parser.add_argument(
-            "--help-all",
-            help="Display all options including advanced parameters.",
-            action="help",
-        )
+    # if not show_all:
+    parser.add_argument(
+        "--help-all",
+        help="Display all options including advanced parameters.",
+        action="help",
+    )
 
     parser.add_argument(
         "-V",
@@ -477,8 +477,10 @@ def report_completion(
 
 
 def main(argv: typing.Optional[typing.List[str]] = None) -> int:
+    # retrieve argv
+    argv = sys.argv[1:] if argv is None else argv
     # build parser and get arguments
-    parser = build_parser()
+    parser = build_parser(argv)
     if not isinstance(argcomplete, ImportError):
         argcomplete.autocomplete(parser)
     args = parser.parse_args(argv)
