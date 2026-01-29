@@ -34,6 +34,7 @@ from .dataset.fasta_gff import FastaGFFDataset
 from .dataset.defensefinder import DefenseFinderDataset
 from .mmseqs import MMSeqs, Database, Clustering
 from .pipeline import ClusteringParameters, ClusteringPipeline
+from .sink import FASTASink
 
 
 def build_parser() -> argparse.ArgumentParser:

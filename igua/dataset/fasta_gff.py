@@ -15,6 +15,7 @@ import rich.progress
 from rich.console import Console
 
 from .base import BaseDataset
+from ..sink import BaseRecordSink
 
 
 _GZIP_MAGIC = b"\x1f\x8b"
@@ -696,7 +697,7 @@ class GenomeResources:
 
     def extract_genome_sequences(
         self,
-        output_file: typing.TextIO,
+        output: BaseRecordSink,
         verbose: bool = False,
     ) -> typing.List[typing.Tuple[str, int, str]]:
         """Extract nucleotide sequences for gene clusters.
@@ -704,7 +705,7 @@ class GenomeResources:
         Streams FASTA file to minimize memory usage.
 
         Args:
-            output_file: Output file handle for writing sequences.
+            output: Output sink for writing records.
             verbose: Enable detailed logging.
 
         Returns:
@@ -745,7 +746,7 @@ class GenomeResources:
 
             for coord in contig_groups[seq_id]:
                 subseq = sequence[coord.start_coord - 1 : coord.end_coord]
-                output_file.write(f">{coord.cluster_id}\n{subseq}\n")
+                output.add_record(coord.cluster_id, subseq)
 
                 if verbose:
                     self.console.print(
@@ -770,7 +771,7 @@ class GenomeResources:
     def extract_proteins_from_coordinates(
         self,
         coordinates: typing.List[SystemCoordinates],
-        output_file: typing.TextIO,
+        output: BaseRecordSink,
         verbose: bool = False,
     ) -> typing.Dict[str, int]:
         """Extract protein sequences from gene coordinates.
@@ -809,7 +810,7 @@ class GenomeResources:
             for gene_id in coord.genes:
                 if seq := self.protein_idx.get_with_fallback(gene_id):
                     protein_id = f"{coord.cluster_id}__{gene_id}"
-                    output_file.write(f">{protein_id}\n{seq}\n")
+                    output.add_record(protein_id, seq)
                     data.append((coord.cluster_id, protein_id, len(seq), ))
                 else:
                     if verbose:
@@ -998,7 +999,7 @@ class FastaGFFDataset(BaseDataset):
     def extract_sequences(
         self,
         progress: rich.progress.Progress,
-        output: pathlib.Path,
+        output: BaseRecordSink,
     ) -> pd.DataFrame:
         """Extract nucleotide sequences from gene clusters.
 
@@ -1016,92 +1017,92 @@ class FastaGFFDataset(BaseDataset):
         )
 
         df = pl.read_csv(self.cluster_metadata, separator="\t")
-        self._metadata_cache_path = output.parent / f".{output.stem}_metadata.json"
+        # self._metadata_cache_path = output.parent / f".{output.stem}_metadata.json"
 
         results = []
 
-        def metadata_generator():
-            """Generator that yields metadata for each genome."""
-            genome_count = 0
-            task = progress.add_task(
-                f"[bold blue]{'Processing':>9}[/] gene clusters", total=len(df)
+        # def metadata_generator():
+        # """Generator that yields metadata for each genome."""
+        genome_count = 0
+        task = progress.add_task(
+            f"[bold blue]{'Processing':>9}[/] gene clusters", total=len(df)
+        )
+
+        for row in df.iter_rows(named=True):
+            genome_id = row.get("genome_id") or f"genome_{genome_count:07}"
+            genome_count += 1
+            progress.update(
+                task,
+                description=f"[bold blue]{'Processing':>9}[/] genome: [bold cyan]{genome_id}",
             )
 
-            with open(output, "w") as dst:
-                for row in df.iter_rows(named=True):
-                    genome_id = row.get("genome_id") or f"genome_{genome_count:07}"
-                    genome_count += 1
-                    progress.update(
-                        task,
-                        description=f"[bold blue]{'Processing':>9}[/] genome: [bold cyan]{genome_id}",
-                    )
+            context = self._create_genome_context(row, genome_id)
 
-                    context = self._create_genome_context(row, genome_id)
+            if not context.is_valid():
+                progress.console.print(
+                    f"[bold yellow]{'Missing':>12}[/] files for [bold cyan]{genome_id}[/]"
+                )
+                progress.update(task, advance=1)
+                continue
 
-                    if not context.is_valid():
-                        progress.console.print(
-                            f"[bold yellow]{'Missing':>12}[/] files for [bold cyan]{genome_id}[/]"
+            with GenomeResources(context, progress.console) as resources:
+                coordinates = resources.coordinates
+                valid_count = sum(1 for c in coordinates if c.valid)
+
+                progress.update(
+                    task,
+                    description=f"[bold blue]{'Processing':>9}[/] genome: [bold cyan]{genome_id}[/] - validated {valid_count}/{len(coordinates)} clusters",
+                )
+
+                extraction_results = resources.extract_genome_sequences(
+                    output,
+                    verbose=self.verbose,
+                )
+
+                contig_groups = {}
+                for coord in coordinates:
+                    if coord.valid:
+                        contig_groups.setdefault(coord.seq_id, []).append(coord)
+                num_contigs = len(contig_groups)
+
+                progress.console.print(
+                    f"[bold blue]{'Extracted':>12}[/] {len(extraction_results)} gene clusters across {num_contigs} contigs/seqs for [bold cyan]{context.genome_id}[/]"
+                )
+
+                for coord in coordinates:
+                    if coord.valid:
+                        results.append(
+                            (
+                                coord.cluster_id,
+                                coord.end_coord - coord.start_coord + 1,
+                                coord.fasta_file,
+                            )
                         )
-                        progress.update(task, advance=1)
-                        continue
 
-                    with GenomeResources(context, progress.console) as resources:
-                        coordinates = resources.coordinates
-                        valid_count = sum(1 for c in coordinates if c.valid)
+                # if coordinates:
+                #     yield {
+                #         "genome_id": genome_id,
+                #         "protein_fasta": str(context.protein_fasta),
+                #         "coordinates": [c.to_dict() for c in coordinates],
+                #     }
 
-                        progress.update(
-                            task,
-                            description=f"[bold blue]{'Processing':>9}[/] genome: [bold cyan]{genome_id}[/] - validated {valid_count}/{len(coordinates)} clusters",
-                        )
+            progress.update(task, advance=1)
 
-                        extraction_results = resources.extract_genome_sequences(
-                            dst,
-                            verbose=self.verbose,
-                        )
+        progress.remove_task(task)
 
-                        contig_groups = {}
-                        for coord in coordinates:
-                            if coord.valid:
-                                contig_groups.setdefault(coord.seq_id, []).append(coord)
-                        num_contigs = len(contig_groups)
-
-                        progress.console.print(
-                            f"[bold blue]{'Extracted':>12}[/] {len(extraction_results)} gene clusters across {num_contigs} contigs/seqs for [bold cyan]{context.genome_id}[/]"
-                        )
-
-                        for coord in coordinates:
-                            if coord.valid:
-                                results.append(
-                                    (
-                                        coord.cluster_id,
-                                        coord.end_coord - coord.start_coord + 1,
-                                        coord.fasta_file,
-                                    )
-                                )
-
-                        if coordinates:
-                            yield {
-                                "genome_id": genome_id,
-                                "protein_fasta": str(context.protein_fasta),
-                                "coordinates": [c.to_dict() for c in coordinates],
-                            }
-
-                    progress.update(task, advance=1)
-
-            progress.remove_task(task)
-
-        cache = ClusterMetadataCache(self._metadata_cache_path)
-        cache.save_streaming(metadata_generator(), len(df))
+        # cache = ClusterMetadataCache(self._metadata_cache_path)
+        # cache.save_streaming(metadata_generator(), len(df))
 
         progress.console.print(
             f"[bold green]{'Extracted':>12}[/] {len(results):,} gene clusters from {len(df):,} genomes/MAGs"
         )
-        progress.console.print(
-            f"[bold blue]{'Cached':>12}[/] metadata to [magenta]{self._metadata_cache_path.name}[/]"
-        )
+        # progress.console.print(
+        #     f"[bold blue]{'Cached':>12}[/] metadata to [magenta]{self._metadata_cache_path.name}[/]"
+        # )
 
         return pd.DataFrame(
-            data=results, columns=["cluster_id", "cluster_length", "filename"]
+            data=results, 
+            columns=["cluster_id", "cluster_length", "filename"]
         ).set_index("cluster_id")
 
     def extract_proteins(
@@ -1139,60 +1140,60 @@ class FastaGFFDataset(BaseDataset):
         df = pl.read_csv(self.cluster_metadata, separator="\t")
         return self._extract_proteins_direct(progress, df, output, representatives)
 
-    def _extract_proteins_from_cache(
-        self,
-        progress: rich.progress.Progress,
-        output: pathlib.Path,
-        representatives: typing.Container[str],
-    ) -> typing.Dict[str, int]:
-        """Extract proteins using cached metadata.
+    # def _extract_proteins_from_cache(
+    #     self,
+    #     progress: rich.progress.Progress,
+    #     output: pathlib.Path,
+    #     representatives: typing.Container[str],
+    # ) -> typing.Dict[str, int]:
+    #     """Extract proteins using cached metadata.
 
-        Args:
-            progress: Rich progress bar instance.
-            output: Path to output FASTA file.
-            representatives: Container of representative cluster IDs.
+    #     Args:
+    #         progress: Rich progress bar instance.
+    #         output: Path to output FASTA file.
+    #         representatives: Container of representative cluster IDs.
 
-        Returns:
-            Dictionary mapping protein_id to sequence length.
-        """
-        cache = ClusterMetadataCache(self._metadata_cache_path)
-        genome_count = sum(1 for _ in cache.iter_genomes())
+    #     Returns:
+    #         Dictionary mapping protein_id to sequence length.
+    #     """
+    #     cache = ClusterMetadataCache(self._metadata_cache_path)
+    #     genome_count = sum(1 for _ in cache.iter_genomes())
 
-        protein_sizes = {}
+    #     protein_sizes = {}
 
-        with open(output, "w") as dst:
-            task = progress.add_task(
-                f"[bold blue]{'Processing':>9}[/] protein sequences", total=genome_count
-            )
+    #     with open(output, "w") as dst:
+    #         task = progress.add_task(
+    #             f"[bold blue]{'Processing':>9}[/] protein sequences", total=genome_count
+    #         )
 
-            for genome_metadata in cache.iter_genomes():
-                genome_id = genome_metadata["genome_id"]
-                progress.update(
-                    task,
-                    description=f"[bold blue]{'Processing':>9}[/] genome: [bold cyan]{genome_id}",
-                )
+    #         for genome_metadata in cache.iter_genomes():
+    #             genome_id = genome_metadata["genome_id"]
+    #             progress.update(
+    #                 task,
+    #                 description=f"[bold blue]{'Processing':>9}[/] genome: [bold cyan]{genome_id}",
+    #             )
 
-                proteins = self._extract_proteins_from_metadata(
-                    genome_metadata,
-                    dst,
-                    progress.console,
-                    representatives,
-                    verbose=self.verbose,
-                )
-                protein_sizes.update(proteins)
+    #             proteins = self._extract_proteins_from_metadata(
+    #                 genome_metadata,
+    #                 dst,
+    #                 progress.console,
+    #                 representatives,
+    #                 verbose=self.verbose,
+    #             )
+    #             protein_sizes.update(proteins)
 
-                progress.update(task, advance=1)
+    #             progress.update(task, advance=1)
 
-            progress.remove_task(task)
+    #         progress.remove_task(task)
 
-        self._log_protein_summary(progress, protein_sizes, representatives)
-        return protein_sizes
+    #     self._log_protein_summary(progress, protein_sizes, representatives)
+    #     return protein_sizes
 
     def _extract_proteins_direct(
         self,
         progress: rich.progress.Progress,
         df: pl.DataFrame,
-        output: pathlib.Path,
+        output: typing.TextIO,
         representatives: typing.Container[str],
     ) -> typing.Dict[str, int]:
         """Extract proteins directly from TSV without cache.
@@ -1208,48 +1209,47 @@ class FastaGFFDataset(BaseDataset):
         """
         protein_df = []
 
-        with open(output, "w") as dst:
-            task = progress.add_task(
-                f"[bold blue]{'Processing':>9}[/] protein sequences", total=len(df)
+        task = progress.add_task(
+            f"[bold blue]{'Processing':>9}[/] protein sequences", total=len(df)
+        )
+
+        for row in df.iter_rows(named=True):
+            genome_id = row.get("genome_id") or f"genome_{0:07}"
+            progress.update(
+                task,
+                description=f"[bold blue]{'Processing':>9}[/] genome: [bold cyan]{genome_id}",
             )
 
-            for row in df.iter_rows(named=True):
-                genome_id = row.get("genome_id") or f"genome_{0:07}"
-                progress.update(
-                    task,
-                    description=f"[bold blue]{'Processing':>9}[/] genome: [bold cyan]{genome_id}",
+            context = self._create_genome_context(row, genome_id)
+
+            if not context.is_valid():
+                progress.console.print(
+                    f"[bold yellow]{'Missing':>12}[/] files for {genome_id}"
                 )
-
-                context = self._create_genome_context(row, genome_id)
-
-                if not context.is_valid():
-                    progress.console.print(
-                        f"[bold yellow]{'Missing':>12}[/] files for {genome_id}"
-                    )
-                    progress.update(task, advance=1)
-                    continue
-
-                with GenomeResources(context, progress.console) as resources:
-                    coordinates = resources.coordinates
-
-                    if representatives:
-                        rep_set = (
-                            set(representatives)
-                            if not isinstance(representatives, set)
-                            else representatives
-                        )
-                        coordinates = [
-                            c for c in coordinates if c.cluster_id in rep_set
-                        ]
-
-                    proteins = resources.extract_proteins_from_coordinates(
-                        coordinates, dst, verbose=self.verbose
-                    )
-                    protein_df.append(proteins)
-
                 progress.update(task, advance=1)
+                continue
 
-            progress.remove_task(task)
+            with GenomeResources(context, progress.console) as resources:
+                coordinates = resources.coordinates
+
+                if representatives:
+                    rep_set = (
+                        set(representatives)
+                        if not isinstance(representatives, set)
+                        else representatives
+                    )
+                    coordinates = [
+                        c for c in coordinates if c.cluster_id in rep_set
+                    ]
+
+                proteins = resources.extract_proteins_from_coordinates(
+                    coordinates, output, verbose=self.verbose
+                )
+                protein_df.append(proteins)
+
+            progress.update(task, advance=1)
+
+        progress.remove_task(task)
 
         protein_df = pd.concat(protein_df)
         self._log_protein_summary(progress, protein_df, representatives)

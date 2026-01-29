@@ -7,6 +7,8 @@ import pandas as pd
 import rich.progress
 
 from ..mmseqs import Database, MMSeqs
+from ..sink import BaseRecordSink
+
 
 
 class BaseDataset(abc.ABC):
@@ -24,7 +26,7 @@ class BaseDataset(abc.ABC):
     def extract_sequences(
         self,
         progress: rich.progress.Progress,
-        output: pathlib.Path,
+        output: BaseRecordSink,
     ) -> pd.DataFrame:
         pass
 
@@ -32,16 +34,12 @@ class BaseDataset(abc.ABC):
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        output: pathlib.Path,
+        output: BaseRecordSink,
         representatives: typing.Container[str],
     ) -> pd.DataFrame:
         pass
 
-    def write_fasta(self, file: typing.TextIO, name: str, sequence: str) -> None:
-        file.write(">{}\n".format(name))
-        file.write(sequence)
-        file.write("\n")
-        return None
+
 
     def translate_orf(
         self, sequence: typing.Union[str, bytes], translation_table: int = 11

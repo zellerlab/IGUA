@@ -17,6 +17,7 @@ from .dataset.defensefinder import DefenseFinderDataset
 from .dataset.fasta_gff import FastaGFFDataset
 from .mmseqs import MMSeqs, Database
 from .hca import manhattan, linkage
+from .sink import FASTASink
 
 
 @dataclasses.dataclass
@@ -156,7 +157,8 @@ class ClusteringPipeline:
         # extract raw sequences
         clusters_fna = self.workdir / "clusters.fna"
         self.console.print(f"[bold blue]{'Loading':>12}[/] input clusters")
-        input_sequences = dataset.extract_sequences(self.progress, clusters_fna)
+        with clusters_fna.open("w") as dst:
+            input_sequences = dataset.extract_sequences(self.progress, FASTASink(dst))
         self.console.print(
             f"[bold green]{'Loaded':>12}[/] {len(input_sequences)} clusters to process"
         )
@@ -202,9 +204,10 @@ class ClusteringPipeline:
                 f"[bold blue]{'Extracting':>12}[/] protein sequences from representative clusters"
             )
 
-            protein_sizes = dataset.extract_proteins(
-                self.progress, proteins_faa, representatives
-            )
+            with proteins_faa.open("w") as dst:
+                protein_sizes = dataset.extract_proteins(
+                    self.progress, FASTASink(dst), representatives
+                )
 
             if not proteins_faa.exists() or proteins_faa.stat().st_size == 0:
                 self.console.print(
