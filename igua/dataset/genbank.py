@@ -14,13 +14,26 @@ _GZIP_MAGIC = b"\x1f\x8b"
 
 
 class GenBankDataset(BaseDataset):
-    """GenBank dataset class."""
+    """A dataset composed of gene clusters in a GenBank file.
+
+    GenBank files are commonly used to distribute a genomic sequence
+    with associated metadata inside a single file.
+
+    Note:
+        This method treats each GenBank record as an independent gene
+        cluster and extracts the full record sequence and all the 
+        annotated genes. For GenBank files obtained with antiSMASH,
+        please use the `AntiSMASHGenBankDataset` class to enable
+        additional processing of the regions.
+
+    """
 
     def __init__(self, path: pathlib.Path):
-        """Initialize GenBank dataset.
+        """Create a new GenBank dataset.
 
         Args:
-            inputs: List of GenBank file paths.
+            input (`pathlib.Path`): The path to a GenBank file.
+
         """
         super().__init__()
         self.path = path
@@ -29,19 +42,6 @@ class GenBankDataset(BaseDataset):
         self,
         progress: rich.progress.Progress,
     ) -> typing.Iterable[Cluster]:
-        """Extracts nucleotide sequences from GenBank files.
-
-        Args:
-            progress (rich.progress.Progress): Progress bar for tracking progress.
-            inputs (typing.List[pathlib.Path]): List of input GenBank files.
-            output (pathlib.Path): Output file path for the extracted sequences.
-
-        Returns:
-            `pandas.DataFrame`: DataFrame containing the extracted sequences
-            and metadata with columns ``cluster_id``, ``cluster_length`` and
-            ``filename``.
-
-        """
         task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
         with io.BufferedReader(progress.open(self.path, "rb", task_id=task)) as reader:  # type: ignore
             if reader.peek().startswith(_GZIP_MAGIC):
@@ -57,22 +57,8 @@ class GenBankDataset(BaseDataset):
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        representatives: typing.Container[str],
+        clusters: typing.Container[str],
     ) -> typing.Iterable[Protein]:
-        """Extracts protein sequences from GenBank files.
-
-        Args:
-            progress (rich.progress.Progress): Progress bar for tracking progress.
-            inputs (typing.List[pathlib.Path]): List of input GenBank files.
-            output (pathlib.Path): Output file path for the extracted protein sequences.
-            clusters (typing.Container[str]): Set of representative cluster IDs.
-
-        Returns:
-            `pandas.DataFrame`: DataFrame containing the extracted proteins
-            and metadata with columns ``cluster_id``, ``protein_id``,
-            ``protein_length`` and ``filename``.
-
-        """
         task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
         with io.BufferedReader(progress.open(self.path, "rb", task_id=task)) as reader:  # type: ignore
             if reader.peek()[:2] == b"\x1f\x8b":
@@ -96,7 +82,7 @@ class GenBankDataset(BaseDataset):
                                 "'translation' qualifier found in CDS "
                                 f"feature of {record.name!r}"
                             )
-                            translation = self.translate_orf(
+                            translation = self._translate_orf(
                                 record.sequence[
                                     feat.location.start : feat.location.end
                                 ]
@@ -110,7 +96,7 @@ class GenBankDataset(BaseDataset):
                         )
         progress.remove_task(task)
 
-        # progress.console.print(
-        #     f"[bold green]{'Extracted':>12}[/] {n_extracted} proteins from "
-        #     f"{len(representatives)} nucleotide representative"
-        # )
+    def _translate_orf(
+        self, sequence: typing.Union[str, bytes], translation_table: int = 11
+    ) -> str:
+        return str(Bio.Seq.Seq(sequence).translate(translation_table))
