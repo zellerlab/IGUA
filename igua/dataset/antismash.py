@@ -54,7 +54,13 @@ def _extract_proteins_from_record(
 
 
 class AntiSMASHGenBankDataset(BaseDataset):
-    """GenBank dataset class."""
+    """A dataset composed of antiSMASH regions in a GenBank file.
+
+    antiSMASH reports regions in a GenBank file but not necessarily
+    with one region per record. This class supports extracting regions
+    independently and recovering the right cluster ID per region.
+
+    """
 
     def __init__(
         self,
@@ -66,6 +72,8 @@ class AntiSMASHGenBankDataset(BaseDataset):
 
         if mode not in {"region", "protocluster", "core"}:
             raise ValueError(f"invalid mode: {mode!r}")
+        if mode in {"protocluster", "core"}:
+            raise NotImplementedError(f"not implemented mode: {mode!r}")
 
         self.mode = mode
         self.path = path
@@ -97,6 +105,14 @@ class AntiSMASHGenBankDataset(BaseDataset):
 
 
 class AntiSMASHZipDataset(BaseDataset):
+    """A dataset composed of antiSMASH results in a Zip file.
+
+    antiSMASH can be configured to report all results inside a Zip file.
+    This class supports reading the antiSMASH-predicted regions from a
+    Zip archive, including handling of region IDs, without requiring the
+    archive to be decompressed.
+
+    """
 
     _REGION_RX = re.compile(r"region(\d){3,}.gbk$")
 
@@ -110,6 +126,8 @@ class AntiSMASHZipDataset(BaseDataset):
 
         if mode not in {"region", "protocluster", "core"}:
             raise ValueError(f"invalid mode: {mode!r}")
+        if mode in {"protocluster", "core"}:
+            raise NotImplementedError(f"not implemented mode: {mode!r}")
 
         self.mode = mode
         self.path = path
