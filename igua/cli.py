@@ -549,7 +549,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
 
         # create a pipeline with the configuration from the CLI
         pipeline = ClusteringPipeline(
-            params,
+            params=params,
             mmseqs=mmseqs,
             workdir=workdir, 
             progress=progress, 

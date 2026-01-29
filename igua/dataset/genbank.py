@@ -4,6 +4,7 @@ import pathlib
 import typing
 
 import gb_io
+import Bio.Seq
 import pandas as pd
 import rich.progress
 
