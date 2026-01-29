@@ -16,13 +16,14 @@ _GZIP_MAGIC = b"\x1f\x8b"
 class GenBankDataset(BaseDataset):
     """GenBank dataset class."""
 
-    def __init__(self, inputs: typing.List[pathlib.Path]):
+    def __init__(self, path: pathlib.Path):
         """Initialize GenBank dataset.
 
         Args:
             inputs: List of GenBank file paths.
         """
-        super().__init__(inputs)
+        super().__init__()
+        self.path = path
 
     def extract_sequences(
         self,
@@ -46,28 +47,27 @@ class GenBankDataset(BaseDataset):
         done = set()
         n_duplicate = 0
 
-        task1 = progress.add_task(f"[bold blue]{'Working':>9}[/]")
-        for input_path in progress.track(self.inputs, task_id=task1):
-            task2 = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
-            with io.BufferedReader(progress.open(input_path, "rb", task_id=task2)) as reader:  # type: ignore
-                if reader.peek().startswith(_GZIP_MAGIC):
-                    reader = gzip.GzipFile(mode="rb", fileobj=reader)  # type: ignore
-                for record in gb_io.iter(reader):
-                    if record.name in done:
-                        n_duplicate += 1
-                    else:
-                        output.add_record(record.name, record.sequence.decode('ascii'))
-                        data.append((record.name, len(record.sequence), input_path))
-                        done.add(record.name)
-            progress.remove_task(task2)
-        progress.remove_task(task1)
+        task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
+        with io.BufferedReader(progress.open(self.path, "rb", task_id=task)) as reader:  # type: ignore
+            if reader.peek().startswith(_GZIP_MAGIC):
+                reader = gzip.GzipFile(mode="rb", fileobj=reader)  # type: ignore
+            for record in gb_io.iter(reader):
+                if record.name in done:
+                    n_duplicate += 1
+                else:
+                    output.add_record(record.name, record.sequence.decode('ascii'))
+                    data.append((record.name, len(record.sequence), self.path))
+                    done.add(record.name)
+        progress.remove_task(task)
         
         if n_duplicate > 0:
             progress.console.print(
-                f"[bold yellow]{'Skipped':>12}[/] {n_duplicate} clusters with duplicate identifiers"
+                f"[bold yellow]{'Skipped':>12}[/] {n_duplicate} "
+                f"clusters with duplicate identifiers"
             )
         return pd.DataFrame(
-            data=data, columns=["cluster_id", "cluster_length", "filename"]
+            data=data, 
+            columns=["cluster_id", "cluster_length", "filename"]
         ).set_index("cluster_id")
 
     def extract_proteins(
@@ -93,48 +93,47 @@ class GenBankDataset(BaseDataset):
         data = []
         done = set()
         
-        for input_path in self.inputs:
-            task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
-            with io.BufferedReader(progress.open(input_path, "rb", task_id=task)) as reader:  # type: ignore
-                if reader.peek()[:2] == b"\x1f\x8b":
-                    reader = gzip.GzipFile(mode="rb", fileobj=reader)  # type: ignore
-                for record in gb_io.iter(reader):
-                    if record.name in representatives:
-                        for i, feat in enumerate(
-                            filter(lambda f: f.kind == "CDS", record.features)
-                        ):
-                            qualifier = next(
-                                (
-                                    qualifier
-                                    for qualifier in feat.qualifiers
-                                    if qualifier.key == "translation"
-                                ),
-                                None,
+        task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
+        with io.BufferedReader(progress.open(self.path, "rb", task_id=task)) as reader:  # type: ignore
+            if reader.peek()[:2] == b"\x1f\x8b":
+                reader = gzip.GzipFile(mode="rb", fileobj=reader)  # type: ignore
+            for record in gb_io.iter(reader):
+                if record.name in representatives:
+                    for i, feat in enumerate(
+                        filter(lambda f: f.kind == "CDS", record.features)
+                    ):
+                        qualifier = next(
+                            (
+                                qualifier
+                                for qualifier in feat.qualifiers
+                                if qualifier.key == "translation"
+                            ),
+                            None,
+                        )
+                        if qualifier is None:
+                            rich.print(
+                                f"[bold yellow]{'Warning':>12}[/] no 'translation' qualifier found in CDS feature of {record.name!r}"
                             )
-                            if qualifier is None:
-                                rich.print(
-                                    f"[bold yellow]{'Warning':>12}[/] no 'translation' qualifier found in CDS feature of {record.name!r}"
-                                )
-                                translation = self.translate_orf(
-                                    record.sequence[
-                                        feat.location.start : feat.location.end
-                                    ]
-                                )
-                            else:
-                                translation = qualifier.value.rstrip("*")
-                            protein_id = "{}_{}".format(record.name, i)
-                            if protein_id not in done:
-                                output.add_record(protein_id, translation)
-                                data.append((record.name, protein_id, len(translation), input_path))
-                                done.add(protein_id)
-
-            progress.remove_task(task)
+                            translation = self.translate_orf(
+                                record.sequence[
+                                    feat.location.start : feat.location.end
+                                ]
+                            )
+                        else:
+                            translation = qualifier.value.rstrip("*")
+                        protein_id = "{}_{}".format(record.name, i)
+                        if protein_id not in done:
+                            output.add_record(protein_id, translation)
+                            data.append((record.name, protein_id, len(translation), self.path))
+                            done.add(protein_id)
+        progress.remove_task(task)
 
         df = pd.DataFrame(
             data=data, 
             columns=["cluster_id", "protein_id", "protein_length", "filename"],
         )
         progress.console.print(
-            f"[bold green]{'Extracted':>12}[/] {len(df):,} proteins from {len(representatives):,} nucleotide representative"
+            f"[bold green]{'Extracted':>12}[/] {len(df):,} proteins from "
+            f"{len(representatives):,} nucleotide representative"
         )
         return df

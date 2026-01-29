@@ -32,6 +32,7 @@ from .dataset.base import BaseDataset
 from .dataset.genbank import GenBankDataset
 from .dataset.fasta_gff import FastaGFFDataset
 from .dataset.defensefinder import DefenseFinderDataset
+from .dataset.list import DatasetList
 from .mmseqs import MMSeqs, Database, Clustering
 from .pipeline import ClusteringParameters, ClusteringPipeline
 from .sink import FASTASink
@@ -381,7 +382,7 @@ def create_dataset(
         progress.console.print(
             f"[bold blue]{'Dataset':>12}[/] [magenta]GenBank[/] format"
         )
-        return GenBankDataset(args.input)
+        return DatasetList(GenBankDataset(path) for path in args.input)
 
     elif dataset_type == "manual":
         progress.console.print(
