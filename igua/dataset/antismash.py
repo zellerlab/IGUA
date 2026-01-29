@@ -85,7 +85,7 @@ class AntiSMASHGenBankDataset(BaseDataset):
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        representatives: typing.Container[str],
+        clusters: typing.Container[str],
     ) -> typing.Iterable[Protein]:
         task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
         with io.BufferedReader(progress.open(self.path, "rb", task_id=task)) as reader:  # type: ignore
