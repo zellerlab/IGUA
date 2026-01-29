@@ -39,6 +39,7 @@ from .pipeline import ClusteringParameters, ClusteringPipeline
 
 def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
     show_all = '--help-all' in argv
+    params = ClusteringParameters.default()
 
     parser = argparse.ArgumentParser(
         prog="igua",
@@ -60,7 +61,6 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
             return parser.add_argument_group(name, help)
         else:
             return parser
-
 
     parser.add_argument(
         "-h",
@@ -159,7 +159,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
     group_clustering.add_argument(
         "--clustering-method",
         help=extended_help_text("The hierarchical method to use for protein-level clustering."),
-        default="average",
+        default=params.clustering_method,
         choices={
             "average",
             "single",
@@ -174,12 +174,12 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         "--clustering-distance",
         help=extended_help_text("The distance threshold after which to stop merging clusters."),
         type=float,
-        default=0.8,
+        default=params.clustering_distance,
     )
     group_clustering.add_argument(
         "--precision",
         help=extended_help_text("The numerical precision to use for computing distances for hierarchical clustering."),
-        default="double",
+        default=params.precision,
         choices={"half", "single", "double"},
     )
 
@@ -191,28 +191,28 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         "--dedup-identity",
         help=extended_help_text("Sequence identity threshold for deduplication step."),
         type=float,
-        default=0.85,
+        default=params.nuc1["sequence_identity"],
         metavar="FLOAT",
     )
     group_mmseqs_dedup.add_argument(
         "--dedup-coverage",
         help=extended_help_text("Coverage threshold for deduplication step."),
         type=float,
-        default=1.0,
+        default=params.nuc1["coverage"],
         metavar="FLOAT",
     )
     group_mmseqs_dedup.add_argument(
         "--dedup-evalue",
         help=extended_help_text("E-value threshold for deduplication step."),
         type=float,
-        default=0.001,
+        default=params.nuc1["e_value"],
         metavar="FLOAT",
     )
     group_mmseqs_dedup.add_argument(
         "--dedup-cluster-mode",
         help=extended_help_text("Clustering mode for deduplication: 0=SetCover, 1=Connected component, 2=Greedy incremental."),
         type=int,
-        default=0,
+        default=params.nuc1["cluster_mode"],
         choices=[0, 1, 2],
         metavar="INT",
     )
@@ -220,7 +220,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         "--dedup-coverage-mode",
         help=extended_help_text("Coverage mode for deduplication: 0=target, 1=query, 2=both, 3=length of target, 4=length of query, 5=length of both."),
         type=int,
-        default=1,
+        default=params.nuc1["coverage_mode"],
         choices=[0, 1, 2, 3, 4, 5],
         metavar="INT",
     )
@@ -228,7 +228,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         "--dedup-spaced-kmer-mode",
         help=extended_help_text("Spaced k-mer mode for deduplication: 0=use ungapped k-mers, 1=use spaced k-mers."),
         type=int,
-        default=0,
+        default=params.nuc1["spaced_kmer_mode"],
         choices=[0, 1],
         metavar="INT",
     )
@@ -241,28 +241,28 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         "--nuc-identity",
         help=extended_help_text("Sequence identity threshold for nucleotide clustering step."),
         type=float,
-        default=0.6,
+        default=params.nuc2["sequence_identity"],
         metavar="FLOAT",
     )
     group_mmseqs_nuc.add_argument(
         "--nuc-coverage",
         help=extended_help_text("Coverage threshold for nucleotide clustering step."),
         type=float,
-        default=0.5,
+        default=params.nuc2["coverage"],
         metavar="FLOAT",
     )
     group_mmseqs_nuc.add_argument(
         "--nuc-evalue",
         help=extended_help_text("E-value threshold for nucleotide clustering step."),
         type=float,
-        default=0.001,
+        default=params.nuc2["e_value"],
         metavar="FLOAT",
     )
     group_mmseqs_nuc.add_argument(
         "--nuc-cluster-mode",
         help=extended_help_text("Clustering mode for nucleotide step: 0=SetCover, 1=Connected component, 2=Greedy incremental."),
         type=int,
-        default=0,
+        default=params.nuc2["cluster_mode"],
         choices=[0, 1, 2],
         metavar="INT",
     )
@@ -270,7 +270,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         "--nuc-coverage-mode",
         help=extended_help_text("Coverage mode for nucleotide step: 0=target, 1=query, 2=both, 3=length of target, 4=length of query, 5=length of both."),
         type=int,
-        default=0,
+        default=params.nuc2["coverage_mode"],
         choices=[0, 1, 2, 3, 4, 5],
         metavar="INT",
     )
@@ -278,7 +278,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         "--nuc-spaced-kmer-mode",
         help=extended_help_text("Spaced k-mer mode for nucleotide step: 0=use ungapped k-mers, 1=use spaced k-mers."),
         type=int,
-        default=0,
+        default=params.nuc2["spaced_kmer_mode"],
         choices=[0, 1],
         metavar="INT",
     )
@@ -291,28 +291,28 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         "--prot-identity",
         help=extended_help_text("Sequence identity threshold for protein clustering step."),
         type=float,
-        default=0.5,
+        default=params.prot["sequence_identity"],
         metavar="FLOAT",
     )
     group_mmseqs_prot.add_argument(
         "--prot-coverage",
         help=extended_help_text("Coverage threshold for protein clustering step."),
         type=float,
-        default=0.9,
+        default=params.prot["coverage"],
         metavar="FLOAT",
     )
     group_mmseqs_prot.add_argument(
         "--prot-evalue",
         help=extended_help_text("E-value threshold for protein clustering step."),
         type=float,
-        default=0.001,
+        default=params.prot["e_value"],
         metavar="FLOAT",
     )
     group_mmseqs_prot.add_argument(
         "--prot-coverage-mode",
         help=extended_help_text("Coverage mode for protein step: 0=target, 1=query, 2=both, 3=length of target, 4=length of query, 5=length of both."),
         type=int,
-        default=1,
+        default=params.prot["coverage_mode"],
         choices=[0, 1, 2, 3, 4, 5],
         metavar="INT",
     )
