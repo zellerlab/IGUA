@@ -437,6 +437,7 @@ def get_mmseqs_params(args: argparse.Namespace) -> ClusteringParameters:
         prot=params_prot,
         clustering_method=args.clustering_method,
         clustering_distance=args.clustering_distance,
+        precision=args.precision,
     )
 
 

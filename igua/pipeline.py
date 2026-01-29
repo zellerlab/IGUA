@@ -22,11 +22,44 @@ from .sink import FASTASink
 
 @dataclasses.dataclass
 class ClusteringParameters:
-    nuc1: Dict[str, object]  # TODO
-    nuc2: Dict[str, object]  # TODO
-    prot: Dict[str, object]  # TODO
+    nuc1: Dict[str, object]
+    nuc2: Dict[str, object]
+    prot: Dict[str, object]
     clustering_method: Literal["average", "single", "complete", "weighted", "centroid", "median", "ward"]
     clustering_distance: float
+    precision: Literal["half", "single", "double"]
+
+    @classmethod
+    def default(cls) -> "ClusteringParameters":
+        """Create new default clustering parameters.
+        """
+        return cls(
+            nuc1=dict(
+                e_value=0.001,
+                sequence_identity=0.85,
+                coverage=1.0,
+                cluster_mode=0,
+                coverage_mode=1,
+                spaced_kmer_mode=0,
+            ),
+            nuc2=dict(
+                e_value=0.001,
+                sequence_identity=0.6,
+                coverage=0.5,
+                cluster_mode=0,
+                coverage_mode=0,
+                spaced_kmer_mode=0,
+            ),
+            prot=dict(
+                e_value=0.001,
+                coverage=0.9,
+                coverage_mode=1,
+                sequence_identity=0.5,
+            ),
+            clustering_method="average",
+            clustering_distance=0.8,
+            precision="double",
+        )
 
 
 @dataclasses.dataclass
@@ -42,23 +75,21 @@ class ClusteringPipeline:
 
     def __init__(
         self,
-        params: ClusteringParameters,
         workdir: pathlib.Path,
+        params: typing.Optional[ClusteringParameters] = None,
         *,
         prefix: str = "GCF",
         jobs: int = 1,
         mmseqs: typing.Optional[MMSeqs] = None,
         progress: typing.Optional[rich.progress.Progress] = None,
-        precision: Literal["half", "single", "double"] = "double",
     ):
         self.jobs = jobs
-        self.params = params
+        self.params = params or ClusteringParameters.default()
         self.workdir = pathlib.Path(workdir)
-        self.precision = precision
         self.prefix = prefix
 
         if mmseqs is None:
-            self.mmseqs = MMSeqs(progress=progress, threads=jobs, tempdir=self.workdir)
+            self.mmseqs = MMSeqs(progress=progress, threads=self.jobs, tempdir=self.workdir)
         else:
             self.mmseqs = mmseqs
 
@@ -111,7 +142,6 @@ class ClusteringPipeline:
         self,
         compositions: scipy.sparse.csr_matrix,
         jobs: typing.Optional[int],
-        precision: str,
     ) -> numpy.ndarray:
         n = 0
         r = compositions.shape[0]
@@ -123,7 +153,7 @@ class ClusteringPipeline:
         if not compositions.has_sorted_indices:
             compositions.sort_indices()
         # compute manhattan distance on sparse matrix
-        distance_vector = numpy.zeros(r * (r - 1) // 2, dtype=precision)
+        distance_vector = numpy.zeros(r * (r - 1) // 2, dtype=self.params.precision)
         manhattan(
             compositions.data,
             compositions.indices,
@@ -301,7 +331,6 @@ class ClusteringPipeline:
             distance_vector = self.compute_distances(
                 compositions.X, 
                 self.jobs, 
-                self.precision
             )
 
             # run hierarchical clustering
