@@ -893,17 +893,6 @@ class FastaGFFDataset(BaseDataset):
         self,
         progress: rich.progress.Progress,
     ) -> typing.Iterable[Cluster]:
-        """Extract nucleotide sequences from gene clusters.
-
-        Caches metadata for later protein extraction.
-
-        Args:
-            progress: Rich progress bar instance.
-            output: Path to output FASTA file.
-
-        Returns:
-            DataFrame with cluster_id, cluster_length, filename.
-        """
         progress.console.print(
             f"[bold blue]{'Using':>12}[/] cluster metadata file: [magenta]{self.cluster_metadata}[/]"
         )
@@ -983,42 +972,11 @@ class FastaGFFDataset(BaseDataset):
         progress: rich.progress.Progress,
         clusters: typing.Container[str],
     ) -> typing.Dict[str, int]:
-        """Extract protein sequences from representative clusters.
-
-        Uses cached metadata from sequence extraction if available.
-
-        Args:
-            progress: Rich progress bar instance.
-            inputs: Input file paths (unused, uses cached metadata).
-            output: Path to output protein FASTA file.
-            clusters: Container of representative cluster IDs.
-
-        Returns:
-            Dictionary mapping protein_id to sequence length.
-        """
-        df = pl.read_csv(self.cluster_metadata, separator="\t")
-        return self._extract_proteins_direct(progress, df, clusters)
-
-    def _extract_proteins_direct(
-        self,
-        progress: rich.progress.Progress,
-        df: pl.DataFrame,
-        clusters: typing.Container[str],
-    ) -> typing.Dict[str, int]:
-        """Extract proteins directly from TSV without cache.
-
-        Args:
-            progress: Rich progress bar instance.
-            df: DataFrame with genome metadata.
-            output: Path to output FASTA file.
-            clusters: Container of representative cluster IDs.
-
-        Returns:
-            Dictionary mapping protein_id to sequence length.
-        """
         task = progress.add_task(
             f"[bold blue]{'Processing':>9}[/] protein sequences", total=len(df)
         )
+
+        df = pl.read_csv(self.cluster_metadata, separator="\t")
 
         for row in df.iter_rows(named=True):
             genome_id = row.get("genome_id") or f"genome_{0:07}"

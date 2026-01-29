@@ -9,10 +9,11 @@ from .base import BaseDataset, Cluster, Protein
 
 
 class DatasetList(BaseDataset, Sequence[BaseDataset]):
-    """A dataset consisting of a list of other datasets.
+    """A dataset consisting in a list of other datasets.
     """
 
     def __init__(self, datasets: Iterable[BaseDataset] = ()):
+        super().__init__()
         self.datasets = list(datasets)
 
     def __len__(self):
