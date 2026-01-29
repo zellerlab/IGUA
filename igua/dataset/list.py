@@ -5,7 +5,7 @@ from typing import Sequence, Iterable
 import pandas
 import rich.progress
 
-from .base import BaseDataset
+from .base import BaseDataset, Cluster, Protein
 
 
 class DatasetList(BaseDataset, Sequence[BaseDataset]):
@@ -27,7 +27,7 @@ class DatasetList(BaseDataset, Sequence[BaseDataset]):
     def extract_clusters(
         self,
         progress: rich.progress.Progress,
-    ):
+    ) -> typing.Iterator[Cluster]:
         task = progress.add_task(f"[bold blue]{'Working':>9}[/]")
         for dataset in progress.track(self.datasets, task_id=task):
             yield from dataset.extract_clusters(progress)
@@ -37,7 +37,7 @@ class DatasetList(BaseDataset, Sequence[BaseDataset]):
         self,
         progress: rich.progress.Progress,
         representatives: typing.Container[str],
-    ):
+    ) -> typing.Iterator[Protein]:
         task = progress.add_task(f"[bold blue]{'Working':>9}[/]")
         for dataset in progress.track(self.datasets, task_id=task):
             yield from dataset.extract_proteins(progress, representatives)

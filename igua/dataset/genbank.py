@@ -28,7 +28,7 @@ class GenBankDataset(BaseDataset):
     def extract_clusters(
         self,
         progress: rich.progress.Progress,
-    ) -> None:
+    ) -> typing.Iterable[Cluster]:
         """Extracts nucleotide sequences from GenBank files.
 
         Args:
@@ -42,8 +42,6 @@ class GenBankDataset(BaseDataset):
             ``filename``.
 
         """
-        n_duplicate = 0
-
         task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
         with io.BufferedReader(progress.open(self.path, "rb", task_id=task)) as reader:  # type: ignore
             if reader.peek().startswith(_GZIP_MAGIC):
@@ -54,31 +52,20 @@ class GenBankDataset(BaseDataset):
                     sequence=record.sequence.decode('ascii'),
                     source=str(self.path),
                 )
-                # n_duplicate += output.add_record(
-                #     record.name,
-                #     record.sequence.decode('ascii'),
-                #     filename=self.path
-                # )
         progress.remove_task(task)
-
-        # if n_duplicate > 0:
-        #     progress.console.print(
-        #         f"[bold yellow]{'Skipped':>12}[/] {n_duplicate} "
-        #         f"clusters with duplicate identifiers"
-        #     )
 
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
         representatives: typing.Container[str],
-    ) -> pd.DataFrame:
+    ) -> typing.Iterable[Protein]:
         """Extracts protein sequences from GenBank files.
 
         Args:
             progress (rich.progress.Progress): Progress bar for tracking progress.
             inputs (typing.List[pathlib.Path]): List of input GenBank files.
             output (pathlib.Path): Output file path for the extracted protein sequences.
-            representatives (typing.Container[str]): Set of representative cluster IDs.
+            clusters (typing.Container[str]): Set of representative cluster IDs.
 
         Returns:
             `pandas.DataFrame`: DataFrame containing the extracted proteins
@@ -91,7 +78,7 @@ class GenBankDataset(BaseDataset):
             if reader.peek()[:2] == b"\x1f\x8b":
                 reader = gzip.GzipFile(mode="rb", fileobj=reader)  # type: ignore
             for record in gb_io.iter(reader):
-                if record.name in representatives:
+                if record.name in clusters:
                     for i, feat in enumerate(
                         filter(lambda f: f.kind == "CDS", record.features)
                     ):
@@ -105,7 +92,9 @@ class GenBankDataset(BaseDataset):
                         )
                         if qualifier is None:
                             rich.print(
-                                f"[bold yellow]{'Warning':>12}[/] no 'translation' qualifier found in CDS feature of {record.name!r}"
+                                f"[bold yellow]{'Warning':>12}[/] no "
+                                "'translation' qualifier found in CDS "
+                                f"feature of {record.name!r}"
                             )
                             translation = self.translate_orf(
                                 record.sequence[
@@ -114,9 +103,8 @@ class GenBankDataset(BaseDataset):
                             )
                         else:
                             translation = qualifier.value.rstrip("*")
-                        protein_id = "{}_{}".format(record.name, i)
                         yield Protein(
-                            id=protein_id,
+                            id="{}_{}".format(record.name, i),
                             sequence=translation,
                             cluster_id=record.name,
                         )
