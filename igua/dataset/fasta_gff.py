@@ -746,7 +746,7 @@ class GenomeResources:
 
             for coord in contig_groups[seq_id]:
                 subseq = sequence[coord.start_coord - 1 : coord.end_coord]
-                output.add_record(coord.cluster_id, subseq)
+                output.add_record(coord.cluster_id, subseq, filename=coord.fasta_file)
 
                 if verbose:
                     self.console.print(
@@ -805,31 +805,35 @@ class GenomeResources:
                 f"[bold blue]{'Processing':>12}[/] {total_genes} proteins from {len(valid_coords)} clusters for [bold cyan]{str(self.context.genome_id)}[/]"
             )
 
-        data = []
+        n_extracted = 0
         for coord in valid_coords:
             for gene_id in coord.genes:
                 if seq := self.protein_idx.get_with_fallback(gene_id):
                     protein_id = f"{coord.cluster_id}__{gene_id}"
-                    output.add_record(protein_id, seq)
-                    data.append((coord.cluster_id, protein_id, len(seq), ))
+                    n_extracted += output.add_record(
+                        protein_id, 
+                        seq, 
+                        cluster_id=coord.cluster_id,
+                        filename=coord.fasta_file,
+                    )
                 else:
                     if verbose:
                         self.console.print(
                             f"[bold yellow]{'Warning':>12}[/] Protein {gene_id} not found for cluster [bold cyan]{coord.cluster_id}[/]"
                         )
 
-        df = pd.DataFrame(
-            data=data, 
-            columns=["cluster_id", "protein_id", "protein_length"],
-        )
+        # df = pd.DataFrame(
+        #     data=data, 
+        #     columns=["cluster_id", "protein_id", "protein_length"],
+        # )
         # df.set_index("protein_id", inplace=True)
 
         self.console.print(
-            f"[bold blue]{'Extracted':>12}[/] {len(df)} proteins from "
-            f"{len(df)} clusters for [bold cyan]{self.context.genome_id}[/]"
+            f"[bold blue]{'Extracted':>12}[/] {n_extracted} proteins from "
+            f"{len(coordinates)} clusters in [bold cyan]{self.context.genome_id}[/]"
         )
 
-        return df
+        # return df
 
 
 class ClusterMetadataCache:
@@ -947,7 +951,8 @@ class FastaGFFDataset(BaseDataset):
             column_mapping: Custom column mapping. If None, uses
                 default generic mapping.
         """
-        super().__init__(inputs)
+        super().__init__()
+        self.inputs = inputs
 
         self.column_mapping = column_mapping or {
             "cluster_id": "cluster_id",
@@ -1242,18 +1247,20 @@ class FastaGFFDataset(BaseDataset):
                         c for c in coordinates if c.cluster_id in rep_set
                     ]
 
-                proteins = resources.extract_proteins_from_coordinates(
-                    coordinates, output, verbose=self.verbose
+                resources.extract_proteins_from_coordinates(
+                    coordinates,
+                    output, 
+                    verbose=self.verbose,
                 )
-                protein_df.append(proteins)
+                # protein_df.append(proteins)
 
             progress.update(task, advance=1)
 
         progress.remove_task(task)
 
-        protein_df = pd.concat(protein_df)
-        self._log_protein_summary(progress, protein_df, representatives)
-        return protein_df
+        # protein_df = pd.concat(protein_df)
+        # self._log_protein_summary(progress, protein_df, representatives)
+        # return protein_df
 
     # def _extract_proteins_from_metadata(
     #     self,

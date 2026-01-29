@@ -24,24 +24,22 @@ class DatasetList(BaseDataset, Sequence[BaseDataset]):
     def __iter__(self):
         return iter(self.datasets)
 
-    def extract_sequences(
+    def extract_clusters(
         self,
         progress: rich.progress.Progress,
-        output: pathlib.Path,
     ):
         task = progress.add_task(f"[bold blue]{'Working':>9}[/]")
         for dataset in progress.track(self.datasets, task_id=task):
-            dataset.extract_sequences(progress, output)
+            yield from dataset.extract_clusters(progress)
         progress.remove_task(task)
 
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        output: pathlib.Path,
         representatives: typing.Container[str],
     ):
         task = progress.add_task(f"[bold blue]{'Working':>9}[/]")
         for dataset in progress.track(self.datasets, task_id=task):
-            dataset.extract_proteins(progress, output, representatives)
+            yield from dataset.extract_proteins(progress, representatives)
         progress.remove_task(task)
                     

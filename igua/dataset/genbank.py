@@ -7,7 +7,7 @@ import gb_io
 import pandas as pd
 import rich.progress
 
-from .base import BaseDataset
+from .base import BaseDataset, Cluster, Protein
 from ..sink import BaseRecordSink
 
 _GZIP_MAGIC = b"\x1f\x8b"
@@ -25,10 +25,9 @@ class GenBankDataset(BaseDataset):
         super().__init__()
         self.path = path
 
-    def extract_sequences(
+    def extract_clusters(
         self,
         progress: rich.progress.Progress,
-        output: BaseRecordSink,
     ) -> None:
         """Extracts nucleotide sequences from GenBank files.
 
@@ -50,23 +49,27 @@ class GenBankDataset(BaseDataset):
             if reader.peek().startswith(_GZIP_MAGIC):
                 reader = gzip.GzipFile(mode="rb", fileobj=reader)  # type: ignore
             for record in gb_io.iter(reader):
-                n_duplicate += output.add_record(
-                    record.name,
-                    record.sequence.decode('ascii'),
-                    filename=self.path
+                yield Cluster(
+                    id=record.name,
+                    sequence=record.sequence.decode('ascii'),
+                    source=str(self.path),
                 )
+                # n_duplicate += output.add_record(
+                #     record.name,
+                #     record.sequence.decode('ascii'),
+                #     filename=self.path
+                # )
         progress.remove_task(task)
 
-        if n_duplicate > 0:
-            progress.console.print(
-                f"[bold yellow]{'Skipped':>12}[/] {n_duplicate} "
-                f"clusters with duplicate identifiers"
-            )
+        # if n_duplicate > 0:
+        #     progress.console.print(
+        #         f"[bold yellow]{'Skipped':>12}[/] {n_duplicate} "
+        #         f"clusters with duplicate identifiers"
+        #     )
 
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        output: BaseRecordSink,
         representatives: typing.Container[str],
     ) -> pd.DataFrame:
         """Extracts protein sequences from GenBank files.
@@ -83,7 +86,6 @@ class GenBankDataset(BaseDataset):
             ``protein_length`` and ``filename``.
 
         """
-        n_extracted = 0
         task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
         with io.BufferedReader(progress.open(self.path, "rb", task_id=task)) as reader:  # type: ignore
             if reader.peek()[:2] == b"\x1f\x8b":
@@ -113,15 +115,14 @@ class GenBankDataset(BaseDataset):
                         else:
                             translation = qualifier.value.rstrip("*")
                         protein_id = "{}_{}".format(record.name, i)
-                        n_extracted += output.add_record(
-                            protein_id,
-                            translation,
-                            filename=self.path,
+                        yield Protein(
+                            id=protein_id,
+                            sequence=translation,
                             cluster_id=record.name,
                         )
         progress.remove_task(task)
 
-        progress.console.print(
-            f"[bold green]{'Extracted':>12}[/] {n_extracted:,} proteins from "
-            f"{len(representatives):,} nucleotide representative"
-        )
+        # progress.console.print(
+        #     f"[bold green]{'Extracted':>12}[/] {n_extracted} proteins from "
+        #     f"{len(representatives)} nucleotide representative"
+        # )

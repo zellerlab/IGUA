@@ -70,6 +70,43 @@ class ClusteringPipeline:
 
     # ---
 
+    def extract_clusters_to_database(
+        self,
+        dataset: BaseDataset,
+        output: pathlib.Path,
+    ):
+        # record processed sequences to flag duplicates
+        done = set()
+        n_duplicates = 0
+        # extract raw sequences
+        self.console.print(f"[bold blue]{'Loading':>12}[/] input clusters")
+        with output.open("w") as dst:
+            sink = FASTASink(dst)
+            for cluster in dataset.extract_clusters(self.progress):
+                if cluster.id not in done:
+                    done.add(cluster.id)
+                    sink.add_record(cluster.id, cluster.sequence, filename=cluster.source)
+                else:
+                    n_duplicates += 1
+            input_sequences = (
+                sink.report_statistic()
+                    .rename(columns={"id": "cluster_id", "length": "cluster_length"})
+                    .set_index("cluster_id")
+            )
+        if n_duplicates > 0:
+            self.console.print(
+                f"[bold yellow]{'Warning':>12}[/] {n_duplicates} duplicate "
+                "clusters found in inputs"
+            )
+
+        self.console.print(
+            f"[bold green]{'Loaded':>12}[/] {len(input_sequences)} "
+            "clusters to process"
+        )
+        return input_sequences
+
+    # ---
+
     def compute_distances(
         self,
         compositions: scipy.sparse.csr_matrix,
@@ -156,23 +193,12 @@ class ClusteringPipeline:
     ):
         # extract raw sequences
         clusters_fna = self.workdir / "clusters.fna"
-        self.console.print(f"[bold blue]{'Loading':>12}[/] input clusters")
-        with clusters_fna.open("w") as dst:
-            sink = FASTASink(dst)
-            dataset.extract_sequences(self.progress, sink)
-            input_sequences = (
-                sink.report_statistic()
-                    .rename(columns={"id": "cluster_id", "length": "cluster_length"})
-                    .set_index("cluster_id")
-            )
-        self.console.print(
-            f"[bold green]{'Loaded':>12}[/] {len(input_sequences)} "
-            "clusters to process"
-        )
+        input_sequences = self.extract_clusters_to_database(dataset, output=clusters_fna)
 
         # create initial sequence database
         self.console.print(
-            f"[bold blue]{'Starting':>12}[/] nucleotide deduplication step with [purple]MMSeqs2[/]"
+            f"[bold blue]{'Starting':>12}[/] nucleotide deduplication step "
+            "with [purple]MMSeqs2[/]"
         )
         db = Database.create(self.mmseqs, clusters_fna)
         step1 = db.cluster(self.workdir / "step1.db", **self.params.nuc1)
@@ -208,12 +234,14 @@ class ClusteringPipeline:
             # extract proteins and record sizes
             proteins_faa = self.workdir / "proteins.faa"
             self.console.print(
-                f"[bold blue]{'Extracting':>12}[/] protein sequences from representative clusters"
+                f"[bold blue]{'Extracting':>12}[/] protein sequences from "
+                "representative clusters"
             )
 
             with proteins_faa.open("w") as dst:
                 sink = FASTASink(dst)
-                dataset.extract_proteins(self.progress, sink, representatives)
+                for protein in dataset.extract_proteins(self.progress, representatives):
+                    sink.add_record(protein.id, protein.sequence, cluster_id=protein.cluster_id)
                 protein_sizes = (
                     sink.report_statistic()
                         .rename(columns={"id": "protein_id", "length": "protein_length"})
