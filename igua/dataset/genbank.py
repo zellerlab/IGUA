@@ -29,22 +29,20 @@ class GenBankDataset(BaseDataset):
         self,
         progress: rich.progress.Progress,
         output: BaseRecordSink,
-    ) -> pd.DataFrame:
+    ) -> None:
         """Extracts nucleotide sequences from GenBank files.
-        
+
         Args:
             progress (rich.progress.Progress): Progress bar for tracking progress.
             inputs (typing.List[pathlib.Path]): List of input GenBank files.
             output (pathlib.Path): Output file path for the extracted sequences.
-        
+
         Returns:
-            `pandas.DataFrame`: DataFrame containing the extracted sequences 
+            `pandas.DataFrame`: DataFrame containing the extracted sequences
             and metadata with columns ``cluster_id``, ``cluster_length`` and
             ``filename``.
 
         """
-        data = []
-        done = set()
         n_duplicate = 0
 
         task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
@@ -52,23 +50,18 @@ class GenBankDataset(BaseDataset):
             if reader.peek().startswith(_GZIP_MAGIC):
                 reader = gzip.GzipFile(mode="rb", fileobj=reader)  # type: ignore
             for record in gb_io.iter(reader):
-                if record.name in done:
-                    n_duplicate += 1
-                else:
-                    output.add_record(record.name, record.sequence.decode('ascii'))
-                    data.append((record.name, len(record.sequence), self.path))
-                    done.add(record.name)
+                n_duplicate += output.add_record(
+                    record.name,
+                    record.sequence.decode('ascii'),
+                    filename=self.path
+                )
         progress.remove_task(task)
-        
+
         if n_duplicate > 0:
             progress.console.print(
                 f"[bold yellow]{'Skipped':>12}[/] {n_duplicate} "
                 f"clusters with duplicate identifiers"
             )
-        return pd.DataFrame(
-            data=data, 
-            columns=["cluster_id", "cluster_length", "filename"]
-        ).set_index("cluster_id")
 
     def extract_proteins(
         self,
@@ -77,22 +70,20 @@ class GenBankDataset(BaseDataset):
         representatives: typing.Container[str],
     ) -> pd.DataFrame:
         """Extracts protein sequences from GenBank files.
-        
+
         Args:
             progress (rich.progress.Progress): Progress bar for tracking progress.
             inputs (typing.List[pathlib.Path]): List of input GenBank files.
             output (pathlib.Path): Output file path for the extracted protein sequences.
             representatives (typing.Container[str]): Set of representative cluster IDs.
-        
+
         Returns:
-            `pandas.DataFrame`: DataFrame containing the extracted proteins 
+            `pandas.DataFrame`: DataFrame containing the extracted proteins
             and metadata with columns ``cluster_id``, ``protein_id``,
             ``protein_length`` and ``filename``.
 
         """
-        data = []
-        done = set()
-        
+        n_extracted = 0
         task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
         with io.BufferedReader(progress.open(self.path, "rb", task_id=task)) as reader:  # type: ignore
             if reader.peek()[:2] == b"\x1f\x8b":
@@ -122,18 +113,15 @@ class GenBankDataset(BaseDataset):
                         else:
                             translation = qualifier.value.rstrip("*")
                         protein_id = "{}_{}".format(record.name, i)
-                        if protein_id not in done:
-                            output.add_record(protein_id, translation)
-                            data.append((record.name, protein_id, len(translation), self.path))
-                            done.add(protein_id)
+                        n_extracted += output.add_record(
+                            protein_id,
+                            translation,
+                            filename=self.path,
+                            cluster_id=record.name,
+                        )
         progress.remove_task(task)
 
-        df = pd.DataFrame(
-            data=data, 
-            columns=["cluster_id", "protein_id", "protein_length", "filename"],
-        )
         progress.console.print(
-            f"[bold green]{'Extracted':>12}[/] {len(df):,} proteins from "
+            f"[bold green]{'Extracted':>12}[/] {n_extracted:,} proteins from "
             f"{len(representatives):,} nucleotide representative"
         )
-        return df

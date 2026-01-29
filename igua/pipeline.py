@@ -158,9 +158,16 @@ class ClusteringPipeline:
         clusters_fna = self.workdir / "clusters.fna"
         self.console.print(f"[bold blue]{'Loading':>12}[/] input clusters")
         with clusters_fna.open("w") as dst:
-            input_sequences = dataset.extract_sequences(self.progress, FASTASink(dst))
+            sink = FASTASink(dst)
+            dataset.extract_sequences(self.progress, sink)
+            input_sequences = (
+                sink.report_statistic()
+                    .rename(columns={"id": "cluster_id", "length": "cluster_length"})
+                    .set_index("cluster_id")
+            )
         self.console.print(
-            f"[bold green]{'Loaded':>12}[/] {len(input_sequences)} clusters to process"
+            f"[bold green]{'Loaded':>12}[/] {len(input_sequences)} "
+            "clusters to process"
         )
 
         # create initial sequence database
@@ -205,8 +212,12 @@ class ClusteringPipeline:
             )
 
             with proteins_faa.open("w") as dst:
-                protein_sizes = dataset.extract_proteins(
-                    self.progress, FASTASink(dst), representatives
+                sink = FASTASink(dst)
+                dataset.extract_proteins(self.progress, sink, representatives)
+                protein_sizes = (
+                    sink.report_statistic()
+                        .rename(columns={"id": "protein_id", "length": "protein_length"})
+                        .set_index("protein_id")
                 )
 
             if not proteins_faa.exists() or proteins_faa.stat().st_size == 0:
@@ -228,7 +239,7 @@ class ClusteringPipeline:
             # record protein lengths and source cluster
             prot_clusters = pandas.merge(
                 prot_clusters, 
-                protein_sizes[["cluster_id", "protein_id", "protein_length"]], 
+                protein_sizes[["cluster_id", "protein_length"]], 
                 on="protein_id"
             )
        

@@ -35,7 +35,6 @@ from .dataset.defensefinder import DefenseFinderDataset
 from .dataset.list import DatasetList
 from .mmseqs import MMSeqs, Database, Clustering
 from .pipeline import ClusteringParameters, ClusteringPipeline
-from .sink import FASTASink
 
 
 def build_parser() -> argparse.ArgumentParser:

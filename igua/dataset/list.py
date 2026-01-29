@@ -28,27 +28,20 @@ class DatasetList(BaseDataset, Sequence[BaseDataset]):
         self,
         progress: rich.progress.Progress,
         output: pathlib.Path,
-    ) -> pandas.DataFrame:
-        contigs = []
+    ):
         task = progress.add_task(f"[bold blue]{'Working':>9}[/]")
         for dataset in progress.track(self.datasets, task_id=task):
-            contigs.append(dataset.extract_sequences(progress, output))
+            dataset.extract_sequences(progress, output)
         progress.remove_task(task)
-        df = pandas.concat(contigs)
-        print(df)
-        return df
 
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
         output: pathlib.Path,
         representatives: typing.Container[str],
-    ) -> pandas.DataFrame:
-        proteins = []
+    ):
         task = progress.add_task(f"[bold blue]{'Working':>9}[/]")
         for dataset in progress.track(self.datasets, task_id=task):
-            proteins.append(dataset.extract_proteins(progress, output, representatives))
+            dataset.extract_proteins(progress, output, representatives)
         progress.remove_task(task)
-        df = pandas.concat(proteins)
-        return df
                     
