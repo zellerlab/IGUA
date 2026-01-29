@@ -10,7 +10,6 @@ import pandas as pd
 import rich.progress
 
 from .base import BaseDataset, Cluster, Protein
-from ..sink import BaseRecordSink
 
 _GZIP_MAGIC = b"\x1f\x8b"
 

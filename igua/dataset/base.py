@@ -8,7 +8,6 @@ import pandas as pd
 import rich.progress
 
 from ..mmseqs import Database, MMSeqs
-from ..sink import BaseRecordSink
 
 
 @dataclasses.dataclass

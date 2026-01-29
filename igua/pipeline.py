@@ -1,3 +1,4 @@
+import abc
 import dataclasses
 import pathlib
 import tempfile
@@ -17,7 +18,40 @@ from .dataset.defensefinder import DefenseFinderDataset
 from .dataset.fasta_gff import FastaGFFDataset
 from .mmseqs import MMSeqs, Database
 from .hca import manhattan, linkage
-from .sink import FASTASink
+
+
+class _BaseSink(abc.ABC):
+
+    def __init__(self):
+        self.stats = []
+        self.done = set()
+
+    def add_record(self, name: str, sequence: str, **kwargs) -> bool:
+        if name not in self.done:
+            self.stats.append({"id": name, "length": len(sequence), **kwargs})
+            self.done.add(name)
+            return True
+        else:
+            return False
+
+    def report_statistic(self) -> pandas.DataFrame:
+        return pandas.DataFrame(self.stats)
+
+
+class _FASTASink(_BaseSink):
+
+    def __init__(self, file: typing.TextIO) -> None:
+        super().__init__()
+        self.file = file
+
+    def add_record(self, name: str, sequence: str, **kwargs) -> None:
+        if not super().add_record(name, sequence, **kwargs):
+            return False
+
+        self.file.write(">{}\n".format(name))
+        self.file.write(sequence)
+        self.file.write("\n")
+        return True
 
 
 @dataclasses.dataclass
@@ -112,7 +146,7 @@ class ClusteringPipeline:
         # extract raw sequences
         self.console.print(f"[bold blue]{'Loading':>12}[/] input clusters")
         with output.open("w") as dst:
-            sink = FASTASink(dst)
+            sink = _FASTASink(dst)
             for cluster in dataset.extract_clusters(self.progress):
                 if cluster.id not in done:
                     done.add(cluster.id)
@@ -269,7 +303,7 @@ class ClusteringPipeline:
             )
 
             with proteins_faa.open("w") as dst:
-                sink = FASTASink(dst)
+                sink = _FASTASink(dst)
                 for protein in dataset.extract_proteins(self.progress, representatives):
                     sink.add_record(protein.id, protein.sequence, cluster_id=protein.cluster_id)
                 protein_sizes = (
