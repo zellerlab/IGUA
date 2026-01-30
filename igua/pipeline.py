@@ -46,8 +46,9 @@ class _FASTASink(_BaseSink):
     def add_record(self, name: str, sequence: str, **kwargs) -> None:
         if not super().add_record(name, sequence, **kwargs):
             return False
-
-        self.file.write(">{}\n".format(name))
+        self.file.write(">")
+        self.file.write(name)
+        self.file.write("\n")
         self.file.write(sequence)
         self.file.write("\n")
         return True
@@ -146,7 +147,7 @@ class ClusteringPipeline:
 
     # ---
 
-    def extract_clusters_to_database(
+    def extract_clusters_to_file(
         self,
         dataset: BaseDataset,
         output: pathlib.Path,
@@ -180,6 +181,27 @@ class ClusteringPipeline:
             "clusters to process"
         )
         return input_sequences
+
+    def extract_proteins_to_file(
+        self,
+        dataset: BaseDataset,
+        clusters: typing.Container[str],
+        output: pathlib.Path,
+    ) -> pandas.DataFrame:
+        self.console.print(
+            f"[bold blue]{'Extracting':>12}[/] protein sequences from "
+            "representative clusters"
+        )
+        with output.open("w") as dst:
+            sink = _FASTASink(dst)
+            for protein in dataset.extract_proteins(self.progress, clusters):
+                sink.add_record(protein.id, protein.sequence, cluster_id=protein.cluster_id)
+            protein_sizes = (
+                sink.report_statistic()
+                    .rename(columns={"id": "protein_id", "length": "protein_length"})
+                    .set_index("protein_id")
+            )
+        return protein_sizes
 
     # ---
 
@@ -235,7 +257,7 @@ class ClusteringPipeline:
     ):
         # extract raw sequences
         clusters_fna = self.workdir / "clusters.fna"
-        input_sequences = self.extract_clusters_to_database(dataset, output=clusters_fna)
+        input_sequences = self.extract_clusters_to_file(dataset, output=clusters_fna)
 
         # create initial sequence database
         self.console.print(
@@ -275,29 +297,11 @@ class ClusteringPipeline:
         if clustering and len(representatives) > 1:
             # extract proteins and record sizes
             proteins_faa = self.workdir / "proteins.faa"
-            self.console.print(
-                f"[bold blue]{'Extracting':>12}[/] protein sequences from "
-                "representative clusters"
-            )
-
-            with proteins_faa.open("w") as dst:
-                sink = _FASTASink(dst)
-                for protein in dataset.extract_proteins(self.progress, representatives):
-                    sink.add_record(protein.id, protein.sequence, cluster_id=protein.cluster_id)
-                protein_sizes = (
-                    sink.report_statistic()
-                        .rename(columns={"id": "protein_id", "length": "protein_length"})
-                        .set_index("protein_id")
-                )
-
+            protein_sizes = self.extract_proteins_to_file(dataset, representatives, output=proteins_faa)
             if not proteins_faa.exists() or proteins_faa.stat().st_size == 0:
                 self.console.print(
-                    f"[bold yellow]{'Warning':>12}[/] No proteins extracted from defense systems"
+                    f"[bold yellow]{'Warning':>12}[/] No proteins extracted from input dataset"
                 )
-                self.console.print(
-                    f"[bold yellow]{'Skipping':>12}[/] protein clustering due to empty protein file"
-                )
-                args.clustering = False
 
             # cluster proteins
             prot_db = Database.create(self.mmseqs, proteins_faa)
