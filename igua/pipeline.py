@@ -16,7 +16,7 @@ from .dataset.base import BaseDataset
 from .dataset.defensefinder import DefenseFinderDataset
 from .dataset.fasta_gff import FastaGFFDataset
 from .mmseqs import MMSeqs, Database
-from .clustering import HierarchicalClustering
+from .clustering import HierarchicalClustering, LinearClustering
 
 
 class _BaseSink(abc.ABC):
@@ -133,7 +133,9 @@ class ClusteringPipeline:
             self.console = progress.console
 
         if self.params.clustering_method == "linclust":
-            raise NotImplementedError
+            self.clustering = LinearClustering(
+                distance=self.params.clustering_distance,
+            )
         else:
             self.clustering = HierarchicalClustering(
                 method=self.params.clustering_method,

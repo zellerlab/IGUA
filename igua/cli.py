@@ -168,6 +168,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
             "centroid",
             "median",
             "ward",
+            "linclust",
         },
     )
     group_clustering.add_argument(
