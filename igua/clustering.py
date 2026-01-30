@@ -106,32 +106,37 @@ class LinearClustering(BaseClustering):
         clusters_aa = numpy.zeros(r, dtype=numpy.int32)
         clusters_aa[:] = X.sum(axis=1).A1
 
-        # use scipy DisjointSet / UnionFind to record
+        # use scipy DisjointSet / UnionFind to record clustering
         ds = DisjointSet(range(r))
 
-        # FIXME: here we use all features, we may want to downsample
-        #        to make this loop less intense for very large datasets?
-        for y in range(X.shape[1]):  
+        # extract columns with more than one row so we only iterate on those
+        n_obs = (X_csc != 0).sum(axis=0)
+        cols = numpy.where(n_obs > 1)[1]
+
+        # iterate on subsets formed by protein membership and cluster together
+        # all observations with relative weighted Manhattan under the distance
+        # threshold, taking the largest observation (in aa.) as the centroid
+        for y in cols:
             # extract which gene clusters contain protein 'y'
-            # (indexing is very fast thanks to the CSC column)
+            # (indexing is faster with the compressed-sparse-column matrix)
             mask = X_csc[:, y]
             if mask.nnz <= 1:
                 continue
-            # extract the indices directly from the CSC (r x 1) array
-            indices = mask.indices 
-            # find the largest gene cluster of the group
-            ref = indices[numpy.argmax(clusters_aa[indices])]
+            # extract the row subset indices directly from the CSC (r x 1) array
+            indices = mask.indices
+            # find the largest gene cluster of the row subset
+            centroid = indices[numpy.argmax(clusters_aa[indices])]
             # compare every other gene clusters to the reference
             for query in indices:
-                d = numpy.abs((X[query] - X[ref]).toarray()).sum()
-                d /= (clusters_aa[query] + clusters_aa[ref]).clip(min=1.0)
+                d = numpy.abs((X[query] - X[centroid]).toarray()).sum()
+                d /= (clusters_aa[query] + clusters_aa[centroid]).clip(min=1.0)
                 if d <= self.distance:
-                    ds.merge(query, ref)
+                    ds.merge(query, centroid)
 
         # extract the cluster indices from the disjoint set
         # NOTE: implementation not super efficient at the moment as
         #       `ds.subsets` returns a list of set that we need to convert
-        #       again...
+        #       again, maybe prohibitive for very large datasets
         flat = numpy.zeros(r, dtype=numpy.int32)
         for i, subset in enumerate(ds.subsets(), 1):
             flat[list(subset)] = i
