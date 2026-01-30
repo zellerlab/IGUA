@@ -6,7 +6,7 @@ import numpy
 import scipy.sparse
 from scipy.cluster.hierarchy import fcluster, DisjointSet
 
-from .hca import linkage, manhattan
+from .hca import linkage, manhattan, manhattan_pair
 
 
 class BaseClustering(abc.ABC):
@@ -41,15 +41,17 @@ class HierarchicalClustering(BaseClustering):
         # check matrix format
         if not isinstance(X, scipy.sparse.csr_matrix):
             raise TypeError(f"expected csr_matrix, got {type(X).__name__}")
-
-        r = X.shape[0]
-        # compute the number of amino acids per cluster
-        clusters_aa = numpy.zeros(r, dtype=numpy.int32)
-        clusters_aa[:] = X.sum(axis=1).A1
+        
         # make sure the sparse matrix has sorted indices (necessary for
         # the distance algorithm to work efficiently)
         if not X.has_sorted_indices:
             X.sort_indices()
+
+        # compute the number of amino acids per cluster
+        r = X.shape[0]
+        clusters_aa = numpy.zeros(r, dtype=numpy.int32)
+        clusters_aa[:] = X.sum(axis=1).A1
+        
         # compute manhattan distance on sparse matrix
         distance_vector = numpy.zeros(r * (r - 1) // 2, dtype=self.precision)
         manhattan(
@@ -95,8 +97,17 @@ class LinearClustering(BaseClustering):
         self,
         X: scipy.sparse.csr_matrix
     ):
-        # get a csr_matrix form the input to support fast selection
-        # of columns
+        # check matrix format
+        if not isinstance(X, scipy.sparse.csr_matrix):
+            raise TypeError(f"expected csr_matrix, got {type(X).__name__}")
+
+        # make sure the sparse matrix has sorted indices (necessary for
+        # the distance algorithm to work without returning bogus values)
+        if not X.has_sorted_indices:
+            X.sort_indices()
+
+        # also compute a csc_matrix form the input to support fast 
+        # selection of columns in the loop
         X_csc = X.tocsc()
 
         # compute the number of amino acids per gene cluster
@@ -127,8 +138,11 @@ class LinearClustering(BaseClustering):
             # find the largest gene cluster of the row subset
             centroid = indices[numpy.argmax(clusters_aa[indices])]
             # compare every other gene clusters to the reference
+            # TODO: implement a Rust function to for manhattan distance
+            #       a la cdist so we can do distance of centroid to every
+            #       other query efficiently in a single call
             for query in indices:
-                d = numpy.abs((X[query] - X[centroid]).toarray()).sum()
+                d = manhattan_pair(X.data, X.indices, X.indptr, query, centroid)
                 d /= (clusters_aa[query] + clusters_aa[centroid]).clip(min=1.0)
                 if d <= self.distance:
                     ds.merge(query, centroid)
