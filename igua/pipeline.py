@@ -11,13 +11,12 @@ import rich.progress
 import scipy.sparse
 import numpy
 import pandas
-from scipy.cluster.hierarchy import fcluster
 
 from .dataset.base import BaseDataset
 from .dataset.defensefinder import DefenseFinderDataset
 from .dataset.fasta_gff import FastaGFFDataset
 from .mmseqs import MMSeqs, Database
-from .hca import manhattan, linkage
+from .clustering import HierarchicalClustering
 
 
 class _BaseSink(abc.ABC):
@@ -133,6 +132,16 @@ class ClusteringPipeline:
         else:
             self.console = progress.console
 
+        if self.params.clustering_method == "linclust":
+            raise NotImplementedError
+        else:
+            self.clustering = HierarchicalClustering(
+                method=self.params.clustering_method,
+                distance=self.params.clustering_distance,
+                precision=self.params.precision,
+                jobs=self.jobs,
+            )
+
     # ---
 
     def extract_clusters_to_database(
@@ -171,39 +180,6 @@ class ClusteringPipeline:
         return input_sequences
 
     # ---
-
-    def compute_distances(
-        self,
-        compositions: scipy.sparse.csr_matrix,
-        jobs: typing.Optional[int],
-    ) -> numpy.ndarray:
-        n = 0
-        r = compositions.shape[0]
-        # compute the number of amino acids per cluster
-        clusters_aa = numpy.zeros(r, dtype=numpy.int32)
-        clusters_aa[:] = compositions.sum(axis=1).A1
-        # make sure the sparse matrix has sorted indices (necessary for
-        # the distance algorithm to work efficiently)
-        if not compositions.has_sorted_indices:
-            compositions.sort_indices()
-        # compute manhattan distance on sparse matrix
-        distance_vector = numpy.zeros(r * (r - 1) // 2, dtype=self.params.precision)
-        manhattan(
-            compositions.data,
-            compositions.indices,
-            compositions.indptr,
-            distance_vector,
-            threads=jobs,
-        )
-        # ponderate by sum of amino-acid distance
-        for i in range(r - 1):
-            l = r - (i + 1)
-            distance_vector[n : n + l] /= (clusters_aa[i + 1 :] + clusters_aa[i]).clip(
-                min=1
-            )
-            n += l
-        # check distances are in [0, 1]
-        return numpy.clip(distance_vector, 0.0, 1.0, out=distance_vector)
 
     def make_compositions(
         self,
@@ -357,23 +333,12 @@ class ClusteringPipeline:
                 protein_representatives,
             )
 
-            # compute and ponderate distances
-            self.console.print(
-                f"[bold blue]{'Computing':>12}[/] pairwise distance based on "
-                "protein composition"
-            )
-            distance_vector = self.compute_distances(
-                compositions.X, 
-                self.jobs, 
-            )
-
-            # run hierarchical clustering
+            # run clustering based on protein array membership
             self.console.print(
                 f"[bold blue]{'Clustering':>12}[/] gene clusters using "
                 f"{self.params.clustering_method} linkage"
             )
-            Z = linkage(distance_vector, method=self.params.clustering_method)
-            flat = fcluster(Z, criterion="distance", t=self.params.clustering_distance)
+            flat = self.clustering.cluster(compositions.X)
 
             # build GCFs based on flat clustering
             gcfs3 = pandas.DataFrame(
