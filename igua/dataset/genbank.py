@@ -21,22 +21,31 @@ class GenBankDataset(BaseDataset):
 
     Note:
         This method treats each GenBank record as an independent gene
-        cluster and extracts the full record sequence and all the 
+        cluster and extracts the full record sequence and all the
         annotated genes. For GenBank files obtained with antiSMASH,
         please use the `AntiSMASHGenBankDataset` class to enable
         additional processing of the regions.
 
     """
 
-    def __init__(self, path: pathlib.Path):
+    def __init__(
+        self,
+        path: pathlib.Path,
+        *,
+        gene_feature: str = "CDS",
+    ):
         """Create a new GenBank dataset.
 
         Args:
             input (`pathlib.Path`): The path to a GenBank file.
+            gene_feature (`str`): The GenBank feature to extract gene
+                sequences from. Defaults to *CDS* which is used by
+                most annotation tools.
 
         """
         super().__init__()
         self.path = path
+        self.gene_feature = gene_feature
 
     def extract_clusters(
         self,
@@ -66,7 +75,7 @@ class GenBankDataset(BaseDataset):
             for record in gb_io.iter(reader):
                 if record.name in clusters:
                     for i, feat in enumerate(
-                        filter(lambda f: f.kind == "CDS", record.features)
+                        filter(lambda f: f.kind == self.gene_feature, record.features)
                     ):
                         qualifier = next(
                             (
@@ -79,8 +88,9 @@ class GenBankDataset(BaseDataset):
                         if qualifier is None:
                             rich.print(  # FIXME: use warning
                                 f"[bold yellow]{'Warning':>12}[/] no "
-                                "'translation' qualifier found in CDS "
-                                f"feature of {record.name!r}"
+                                f"'translation' qualifier found in "
+                                f"{self.gene_feature!r} feature of "
+                                f"{record.name!r}"
                             )
                             loc = feat.location
                             gene = record.sequence[loc.start : loc.end]
