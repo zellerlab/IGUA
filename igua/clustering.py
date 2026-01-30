@@ -37,6 +37,7 @@ class HierarchicalClustering(BaseClustering):
     def _compute_distances(
         self,
         X: scipy.sparse.csr_matrix,
+        weights: numpy.ndarray,
     ) -> numpy.ndarray:
         # check matrix format
         if not isinstance(X, scipy.sparse.csr_matrix):
@@ -50,7 +51,7 @@ class HierarchicalClustering(BaseClustering):
         # compute the number of amino acids per cluster
         r = X.shape[0]
         clusters_aa = numpy.zeros(r, dtype=numpy.int32)
-        clusters_aa[:] = X.sum(axis=1).A1
+        clusters_aa[:] = X @ weights
         
         # compute manhattan distance on sparse matrix
         distance_vector = numpy.zeros(r * (r - 1) // 2, dtype=self.precision)
@@ -58,6 +59,7 @@ class HierarchicalClustering(BaseClustering):
             X.data,
             X.indices,
             X.indptr,
+            weights,
             distance_vector,
             threads=self.jobs,
         )
@@ -65,9 +67,8 @@ class HierarchicalClustering(BaseClustering):
         n = 0
         for i in range(r - 1):
             l = r - (i + 1)
-            distance_vector[n : n + l] /= (clusters_aa[i + 1 :] + clusters_aa[i]).clip(
-                min=1
-            )
+            maxdist = (clusters_aa[i + 1 :] + clusters_aa[i]).clip(min=1)
+            distance_vector[n : n + l] /= maxdist
             n += l
         # enforce distances to be in [0, 1] (slight possibility of >1 due
         # to handling of alignment weights but we can round off)
@@ -76,8 +77,11 @@ class HierarchicalClustering(BaseClustering):
     def cluster(
         self,
         X: scipy.sparse.spmatrix,
+        weights: numpy.ndarray,
     ) -> numpy.ndarray:
-        pdist = self._compute_distances(X)
+        if X.shape[1] != weights.shape[0]:
+            raise ValueError("inconsistent shapes between X and weights")
+        pdist = self._compute_distances(X, weights)
         Z = linkage(pdist, method=self.method)
         return fcluster(Z, criterion="distance", t=self.distance)
 
@@ -95,7 +99,8 @@ class LinearClustering(BaseClustering):
 
     def cluster(
         self,
-        X: scipy.sparse.csr_matrix
+        X: scipy.sparse.csr_matrix,
+        weights: numpy.ndarray,
     ):
         # check matrix format
         if not isinstance(X, scipy.sparse.csr_matrix):
@@ -115,7 +120,7 @@ class LinearClustering(BaseClustering):
         #        by an additional argument most likely
         r = X.shape[0]
         clusters_aa = numpy.zeros(r, dtype=numpy.int32)
-        clusters_aa[:] = X.sum(axis=1).A1
+        clusters_aa[:] = X @ weights
 
         # use scipy DisjointSet / UnionFind to record clustering
         ds = DisjointSet(range(r))
@@ -135,7 +140,7 @@ class LinearClustering(BaseClustering):
                 continue
             # extract the row subset indices directly from the CSC (r x 1) array
             indices = mask.indices
-            # find the largest gene cluster of the row subset
+            # find t he largest gene cluster of the row subset
             centroid = indices[numpy.argmax(clusters_aa[indices])]
             # compare every other gene clusters to the reference
             # TODO: implement a Rust function to for manhattan distance

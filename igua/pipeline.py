@@ -228,7 +228,7 @@ class ClusteringPipeline:
         for row in self.progress.track(protein_clusters.itertuples(), task_id=task):
             cluster_index = representatives[row.cluster_id]
             prot_index = protein_representatives[row.protein_representative]
-            compositions[cluster_index, prot_index] += lengths.loc[row.protein_representative]
+            compositions[cluster_index, prot_index] += 1 #lengths.loc[row.protein_representative]
         self.progress.remove_task(task)
 
         # Build the annotated data matrix
@@ -344,7 +344,10 @@ class ClusteringPipeline:
                 f"[bold blue]{'Clustering':>12}[/] gene clusters using "
                 f"{self.params.clustering_method} linkage"
             )
-            flat = self.clustering.cluster(compositions.X)
+            flat = self.clustering.cluster(
+                compositions.X,
+                weights=compositions.var["size"].values,
+            )
 
             # build GCFs based on flat clustering
             gcfs3 = pandas.DataFrame(
