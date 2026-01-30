@@ -77,16 +77,14 @@ class GenBankDataset(BaseDataset):
                             None,
                         )
                         if qualifier is None:
-                            rich.print(
+                            rich.print(  # FIXME: use warning
                                 f"[bold yellow]{'Warning':>12}[/] no "
                                 "'translation' qualifier found in CDS "
                                 f"feature of {record.name!r}"
                             )
-                            translation = self._translate_orf(
-                                record.sequence[
-                                    feat.location.start : feat.location.end
-                                ]
-                            )
+                            loc = feat.location
+                            gene = record.sequence[loc.start : loc.end]
+                            translation = self._translate_orf(gene)
                         else:
                             translation = qualifier.value.rstrip("*")
                         yield Protein(
@@ -99,4 +97,12 @@ class GenBankDataset(BaseDataset):
     def _translate_orf(
         self, sequence: typing.Union[str, bytes], translation_table: int = 11
     ) -> str:
-        return str(Bio.Seq.Seq(sequence).translate(translation_table))
+        seq = Bio.Seq.MutableSeq(sequence)
+        rest = len(seq) % 3
+        if rest != 0:
+            rich.print(  # FIXME: use warning
+                f"[bold yellow]{'Warning':>12}[/] CDS feature location "
+                "contains an incomplete codon"
+            )
+            seq.extend('N' * (3 - rest))
+        return str(seq.translate(translation_table))
