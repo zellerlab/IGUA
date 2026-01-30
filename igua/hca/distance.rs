@@ -43,7 +43,7 @@ where
         .build()
         .expect("failed to create thread pool");
    
-    py.allow_threads(|| {
+    py.detach(|| {
         pool.install(|| {
             subslices.into_par_iter()
                 .enumerate()
@@ -117,16 +117,16 @@ pub fn manhattan<'py>(
     let indices_s = indices_r.as_slice()?;
     let data_s = data_r.as_slice()?;
     
-    let d = distances.as_ref();
-    if let Ok(d) = <Bound<'py, PyArray::<f64, numpy::Ix1>>>::extract_bound(d) {
+    let d = distances.as_borrowed();
+    if let Ok(d) = <Bound<'py, PyArray::<f64, numpy::Ix1>>>::extract(d) {
         let mut view = d.try_readwrite()?;
         return manhattan_impl(py, indptr_s, indices_s, data_s, view.as_slice_mut()?, threads);
     }
-    if let Ok(d) = <Bound<'py, PyArray::<f32, numpy::Ix1>>>::extract_bound(d) {
+    if let Ok(d) = <Bound<'py, PyArray::<f32, numpy::Ix1>>>::extract(d) {
         let mut view = d.try_readwrite()?;
         return manhattan_impl(py, indptr_s, indices_s, data_s, view.as_slice_mut()?, threads);
     }
-    if let Ok(d) = <Bound<'py, PyArray::<f16, numpy::Ix1>>>::extract_bound(d) {
+    if let Ok(d) = <Bound<'py, PyArray::<f16, numpy::Ix1>>>::extract(d) {
         let mut view = d.try_readwrite()?;
         return manhattan_impl(py, indptr_s, indices_s, data_s, view.as_slice_mut()?, threads);
     }

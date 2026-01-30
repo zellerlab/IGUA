@@ -9,9 +9,9 @@ name = "hca"
 path = "igua/hca/lib.rs"
 
 [dependencies.pyo3]
-version = "0.23"
+version = "0.27"
 [dependencies.numpy]
-version = "0.23"
+version = "0.27"
 features = ["half"]
 [dependencies.rayon]
 version = "1.7"

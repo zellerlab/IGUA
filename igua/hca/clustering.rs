@@ -65,14 +65,14 @@ pub fn linkage<'py>(
         other => return Err(PyValueError::new_err(format!("Invalid method: {}", other))),
     };
 
-    let d = distances.as_ref();
-    if let Ok(d) = <Bound<'py, PyArray::<f64, numpy::Ix1>>>::extract_bound(d) {
+    let d = distances.as_borrowed();
+    if let Ok(d) = <Bound<'py, PyArray::<f64, numpy::Ix1>>>::extract(d) {
         return linkage_impl(py, &d, variant);
     }
-    if let Ok(d) = <Bound<'py, PyArray::<f32, numpy::Ix1>>>::extract_bound(d) {
+    if let Ok(d) = <Bound<'py, PyArray::<f32, numpy::Ix1>>>::extract(d) {
         return linkage_impl(py, &d, variant);
     }
-    if let Ok(d) = <Bound<'py, PyArray::<f16, numpy::Ix1>>>::extract_bound(d) {
+    if let Ok(d) = <Bound<'py, PyArray::<f16, numpy::Ix1>>>::extract(d) {
         return linkage_impl(py, &d, variant);
     }
 
