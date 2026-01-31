@@ -136,7 +136,7 @@ changed with the `--clustering-method` and `--clustering-distance` flags.
 Additionally, the precision of the distance matrix used for the clustering can
 be lowered to reduce memory usage, using `single` or `half` precision floating
 point numbers instead of the `double` precision used by default. Use the
-`--precision` flag to control numerical precision.
+`--clustering-precision` flag to control numerical precision.
 
 ### ⚙️ Advanced usage
 
@@ -208,7 +208,9 @@ $   --protein-fasta--file /path/to/genome-id.faa
 #### 🛠️ Running IGUA with custom MMseqs2 parameters
 
 Various MMSeqs2 parameters can be adjusted to control the sensitivity and speed
-of the clustering steps. For more information, see `igua --help-all`. Please note that the default parameters have been optimized for general usage, and changing them may lead to suboptimal results.
+of the clustering steps. For more information, see `igua --help-all`. Please note 
+that the default parameters have been optimized for general usage, and changing 
+them may lead to suboptimal results.
 
 ## 💭 Feedback
 
