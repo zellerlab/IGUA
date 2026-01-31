@@ -15,7 +15,7 @@ fn manhattan_pair_impl<T>(
     indptr: &[i32],
     indices: &[i32],
     data: &[i32],
-    weights: Option<&[i64]>,
+    weights: Option<&[i32]>,
     px: usize,
     py: usize,
 ) -> T 
@@ -72,7 +72,7 @@ fn manhattan_impl<'py, T>(
     indptr: &[i32],
     indices: &[i32],
     data: &[i32],
-    weights: Option<&[i64]>,
+    weights: Option<&[i32]>,
     output: &mut [T],
     threads: usize,
 ) -> PyResult<()> 
@@ -132,7 +132,7 @@ pub fn manhattan<'py>(
     data: &Bound<'py, PyArray<i32, numpy::Ix1>>,
     indices: &Bound<'py, PyArray<i32, numpy::Ix1>>,
     indptr: &Bound<'py, PyArray<i32, numpy::Ix1>>,
-    weights: Option<&Bound<'py, PyArray<i64, numpy::Ix1>>>,
+    weights: Option<&Bound<'py, PyArray<i32, numpy::Ix1>>>,
     distances: &Bound<'py, PyAny>,
     threads: usize,
 ) -> PyResult<()> {
@@ -180,7 +180,7 @@ pub fn manhattan_pair<'py>(
     data: &Bound<'py, PyArray<i32, numpy::Ix1>>,
     indices: &Bound<'py, PyArray<i32, numpy::Ix1>>,
     indptr: &Bound<'py, PyArray<i32, numpy::Ix1>>,
-    weights: Option<&Bound<'py, PyArray<i64, numpy::Ix1>>>,
+    weights: Option<&Bound<'py, PyArray<i32, numpy::Ix1>>>,
     i: usize,
     j: usize,
 ) -> PyResult<f64> {

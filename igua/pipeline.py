@@ -200,6 +200,7 @@ class ClusteringPipeline:
                 sink.report_statistic()
                     .rename(columns={"id": "protein_id", "length": "protein_length"})
                     .set_index("protein_id")
+                    .astype({"protein_length": "int32"})
             )
         return protein_sizes
 

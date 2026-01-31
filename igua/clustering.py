@@ -52,12 +52,13 @@ class HierarchicalClustering(BaseClustering):
         if not X.has_sorted_indices:
             X.sort_indices()
 
-        # compute the number of amino acids per cluster
+        # compute the total length of each observation
+        # (used to rescale the absolute distances to a relative range)
         r = X.shape[0]
         if weights is None:
-            clusters_aa = X.sum(axis=1, dtype=numpy.int32)
+            total = X.sum(axis=1, dtype=numpy.int32)
         else:
-            clusters_aa = X @ weights
+            total = X @ weights
 
         # compute manhattan distance on sparse matrix
         distance_vector = numpy.zeros(r * (r - 1) // 2, dtype=self.precision)
@@ -73,7 +74,7 @@ class HierarchicalClustering(BaseClustering):
         n = 0
         for i in range(r - 1):
             l = r - (i + 1)
-            maxdist = numpy.clip(clusters_aa[i + 1 :] + clusters_aa[i], min=1)
+            maxdist = numpy.clip(total[i + 1 :] + total[i], min=1)
             distance_vector[n : n + l] /= maxdist
             n += l
         # enforce distances to be in [0, 1] (slight possibility of >1 due
@@ -121,14 +122,13 @@ class LinearClustering(BaseClustering):
         # selection of columns in the loop
         X_csc = X.tocsc()
 
-        # compute the number of amino acids per gene cluster
-        # FIXME: may not be reliable if we can disable weighting, replace
-        #        by an additional argument most likely
+        # compute the total length of each observation
+        # (used to rescale the absolute distances to a relative range)
         r = X.shape[0]
         if weights is None:
-            clusters_aa = X.sum(axis=1, dtype=numpy.int32)
+            total = X.sum(axis=1, dtype=numpy.int32)
         else:
-            clusters_aa = X @ weights
+            total = X @ weights
 
         # use scipy DisjointSet / UnionFind to record clustering
         ds = DisjointSet(range(r))
@@ -149,14 +149,14 @@ class LinearClustering(BaseClustering):
             # extract the row subset indices directly from the CSC (r x 1) array
             indices = mask.indices
             # find t he largest gene cluster of the row subset
-            centroid = indices[numpy.argmax(clusters_aa[indices])]
+            centroid = indices[numpy.argmax(total[indices])]
             # compare every other gene clusters to the reference
             # TODO: implement a Rust function to for manhattan distance
             #       a la cdist so we can do distance of centroid to every
-            #       other query efficiently in a single call
+            #       other query efficiently in a single call?
             for query in indices:
                 d = manhattan_pair(X.data, X.indices, X.indptr, weights, query, centroid)
-                d /= numpy.clip(clusters_aa[query] + clusters_aa[centroid], min=1.0)
+                d /= numpy.clip(total[query] + total[centroid], min=1.0)
                 if d <= self.distance:
                     ds.merge(query, centroid)
 
