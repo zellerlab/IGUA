@@ -103,7 +103,6 @@ class ClusteringParameters:
 class ClusteringResult:
     gcfs: pandas.DataFrame
     compositions: typing.Optional[anndata.AnnData]
-    proteins_faa: typing.Optional[pathlib.Path]
 
 
 class ClusteringPipeline:
@@ -215,6 +214,10 @@ class ClusteringPipeline:
         representatives: typing.Dict[str, int],
         protein_representatives: typing.Dict[str, int],
     ) -> anndata.AnnData:
+        self.console.print(
+            f"[bold blue]{'Building':>12}[/] protein compositional array"
+        )
+
         # index the proteins by protein ID
         lengths = protein_clusters.set_index("protein_id")["protein_length"]
 
@@ -253,16 +256,11 @@ class ClusteringPipeline:
 
     # ---
 
-    def run(
-        self,
-        dataset: BaseDataset,
-        *,
-        clustering: bool = True,
+    def _run_nucleotide_deduplication(
+        self, 
+        workdir,
+        clusters_fna,
     ):
-        # extract raw sequences
-        clusters_fna = self.workdir / "clusters.fna"
-        input_sequences = self.extract_clusters_to_file(dataset, output=clusters_fna)
-
         # create initial sequence database
         self.console.print(
             f"[bold blue]{'Starting':>12}[/] nucleotide deduplication step "
@@ -270,7 +268,7 @@ class ClusteringPipeline:
         )
         with Stopwatch() as stopwatch:
             db = Database.create(self.mmseqs, clusters_fna)
-            step1 = db.cluster(self.workdir / "step1.db", **self.params.nuc1)
+            step1 = db.cluster(workdir / "step1.db", **self.params.nuc1)
             gcfs1 = step1.to_dataframe(columns=["fragment_representative", "cluster_id"]).sort_values("cluster_id")  # type: ignore
         self.console.print(
             f"[bold blue]{'Finished':>12}[/] nucleotide deduplication step "
@@ -280,23 +278,36 @@ class ClusteringPipeline:
             f"[bold green]{'Reduced':>12}[/] {len(gcfs1)} clusters to "
             f"{gcfs1.fragment_representative.nunique()} complete representatives"
         )
+        return step1, gcfs1
 
+    def _run_nucleotide_clustering(
+        self,
+        workdir,
+        step1,
+    ):
         # cluster sequences
         self.console.print(
             f"[bold blue]{'Starting':>12}[/] nucleotide clustering step with [purple]MMSeqs2[/]"
         )
         with Stopwatch() as stopwatch:
-            repdb = step1.to_subdb(self.workdir / "step1.rep_seq.db")
-            step2 = repdb.cluster(self.workdir / "step2.db", **self.params.nuc2)
+            repdb = step1.to_subdb(workdir / "step1.rep_seq.db")
+            step2 = repdb.cluster(workdir / "step2.db", **self.params.nuc2)
             gcfs2 = step2.to_dataframe(columns=["nucleotide_representative", "fragment_representative"]).sort_values("fragment_representative")  # type: ignore
         self.console.print(
             f"[bold blue]{'Finished':>12}[/] nucleotide clustering step "
             f"in [bold cyan]{stopwatch.total_human()}[/]"
         )
         self.console.print(
-            f"[bold green]{'Reduced':>12}[/] {len(gcfs2)} clusters to {len(gcfs2.nucleotide_representative.unique())} nucleotide representatives"
+            f"[bold green]{'Reduced':>12}[/] {len(gcfs2)} clusters to "
+            f"{len(gcfs2.nucleotide_representative.unique())} nucleotide "
+            "representatives"
         )
+        return gcfs2
 
+    def _extract_representatives(
+        self,
+        gcfs2
+    ):  
         # load representatives
         self.console.print(
             f"[bold blue]{'Extracting':>12}[/] representative clusters"
@@ -306,107 +317,125 @@ class ClusteringPipeline:
             for i, x in enumerate(sorted(gcfs2["nucleotide_representative"].unique()))
         }
         self.console.print(
-            f"[bold green]{'Found':>12}[/] {len(representatives)} nucleotide representative clusters"
+            f"[bold green]{'Found':>12}[/] {len(representatives)} nucleotide "
+            "representative clusters"
+        )
+        return representatives
+
+    def _run_protein_clustering(
+        self,
+        workdir,
+        dataset,
+        representatives
+    ):
+        # extract proteins and record sizes
+        proteins_faa = workdir / "proteins.faa"
+        protein_sizes = self.extract_proteins_to_file(dataset, representatives, output=proteins_faa)
+        if not proteins_faa.exists() or proteins_faa.stat().st_size == 0:
+            self.console.print(
+                f"[bold yellow]{'Warning':>12}[/] No proteins extracted from input dataset"
+            )
+
+        # cluster proteins
+        self.console.print(
+            f"[bold blue]{'Starting':>12}[/] protein clustering step with [purple]MMSeqs2[/]"
+        )
+        with Stopwatch() as stopwatch:
+            prot_db = Database.create(self.mmseqs, proteins_faa)
+            prot_result = prot_db.cluster(workdir / "step3.db", **self.params.prot)
+            prot_clusters = prot_result.to_dataframe(
+                columns=["protein_representative", "protein_id"]
+            )
+            # record protein lengths and source cluster
+            prot_clusters = pandas.merge(
+                prot_clusters,
+                protein_sizes[["cluster_id", "protein_length"]],
+                on="protein_id"
+            )
+            # extract protein representatives
+            protein_representatives = {
+                x: i
+                for i, x in enumerate(
+                    sorted(prot_clusters["protein_representative"].unique())
+                )
+            }
+        self.console.print(
+            f"[bold blue]{'Finished':>12}[/] protein clustering step "
+            f"in [bold cyan]{stopwatch.total_human()}[/]"
+        )
+        self.console.print(
+            f"[bold green]{'Found':>12}[/] {len(protein_representatives)} "
+            f"protein representatives for {len(prot_clusters)} proteins"
+        )
+        return self.make_compositions(
+            prot_clusters,
+            representatives,
+            protein_representatives,
         )
 
-        if clustering and len(representatives) > 1:
-            # extract proteins and record sizes
-            proteins_faa = self.workdir / "proteins.faa"
-            protein_sizes = self.extract_proteins_to_file(dataset, representatives, output=proteins_faa)
-            if not proteins_faa.exists() or proteins_faa.stat().st_size == 0:
-                self.console.print(
-                    f"[bold yellow]{'Warning':>12}[/] No proteins extracted from input dataset"
-                )
-
-            # cluster proteins
-            self.console.print(
-                f"[bold blue]{'Starting':>12}[/] protein clustering step with [purple]MMSeqs2[/]"
-            )
-            with Stopwatch() as stopwatch:
-                prot_db = Database.create(self.mmseqs, proteins_faa)
-                prot_result = prot_db.cluster(self.workdir / "step3.db", **self.params.prot)
-                prot_clusters = prot_result.to_dataframe(
-                    columns=["protein_representative", "protein_id"]
-                )
-                # record protein lengths and source cluster
-                prot_clusters = pandas.merge(
-                    prot_clusters,
-                    protein_sizes[["cluster_id", "protein_length"]],
-                    on="protein_id"
-                )
-                # extract protein representatives
-                protein_representatives = {
-                    x: i
-                    for i, x in enumerate(
-                        sorted(prot_clusters["protein_representative"].unique())
-                    )
-                }
-            self.console.print(
-                f"[bold blue]{'Finished':>12}[/] protein clustering step "
-                f"in [bold cyan]{stopwatch.total_human()}[/]"
-            )
-            self.console.print(
-                f"[bold green]{'Found':>12}[/] {len(protein_representatives)} "
-                f"protein representatives for {len(prot_clusters)} proteins"
-            )
-
-            # build compositional array
-            self.console.print(
-                f"[bold blue]{'Building':>12}[/] protein compositional array"
-            )
-            compositions = self.make_compositions(
-                prot_clusters,
-                representatives,
-                protein_representatives,
-            )
-
-            # use weights unless disabled
-            if self.params.clustering_weight == "protein":
-                weights = compositions.var["size"].values
-            elif self.params.clustering_weight is None:
-                weights = None
-            else:
-                raise ValueError(f"invalid clustering weight: {self.params.clustering_weight!r}")
-
-            # run clustering based on protein array membership
-            self.console.print(
-                f"[bold blue]{'Clustering':>12}[/] gene clusters using "
-                f"{self.params.clustering_method} linkage"
-            )
-            with Stopwatch() as stopwatch:
-                flat = self.clustering.cluster(compositions.X, weights)
-
-                # build GCFs based on flat clustering
-                gcfs3 = pandas.DataFrame(
-                    {
-                        "gcf_id": [f"{self.prefix}{i:07}" for i in flat],
-                        "nucleotide_representative": compositions.obs_names,
-                    }
-                )
-            self.console.print(
-                f"[bold blue]{'Finished':>12}[/] hierarchical clustering step "
-                f"in [bold cyan]{stopwatch.total_human()}[/]"
-            )
-
+    def _hierarchical_clustering(
+        self,
+        compositions,
+    ):
+        # use weights unless disabled
+        if self.params.clustering_weight == "protein":
+            weights = compositions.var["size"].values
+        elif self.params.clustering_weight is None:
+            weights = None
         else:
-            self.console.print(
-                f"[bold yellow]{'Skipping':>12}[/] hierarchical clustering step"
-            )
-            compositions = None
-            proteins_faa = None
-            sorted_representatives = sorted(
-                representatives, key=representatives.__getitem__
-            )
+            raise ValueError(f"invalid clustering weight: {self.params.clustering_weight!r}")
+        # run clustering based on protein array membership
+        self.console.print(
+            f"[bold blue]{'Clustering':>12}[/] gene clusters using "
+            f"{self.params.clustering_method} linkage"
+        )
+        with Stopwatch() as stopwatch:
+            flat = self.clustering.cluster(compositions.X, weights)
+            # build GCFs based on flat clustering
             gcfs3 = pandas.DataFrame(
                 {
-                    "gcf_id": [
-                        f"{self.prefix}{i+1:07}"
-                        for i in range(len(sorted_representatives))
-                    ],
-                    "nucleotide_representative": sorted_representatives,
+                    "gcf_id": [f"{self.prefix}{i:07}" for i in flat],
+                    "nucleotide_representative": compositions.obs_names,
                 }
             )
+        self.console.print(
+            f"[bold blue]{'Finished':>12}[/] hierarchical clustering step "
+            f"in [bold cyan]{stopwatch.total_human()}[/]"
+        )
+        return gcfs3
 
+    def _hierarchical_clustering_fallback(
+        self,
+        representatives,
+    ):
+        self.console.print(
+            f"[bold yellow]{'Skipping':>12}[/] hierarchical clustering step"
+        )
+        compositions = None
+        # proteins_faa = None
+        sorted_representatives = sorted(
+            representatives, 
+            key=representatives.__getitem__
+        )
+        gcfs3 = pandas.DataFrame(
+            {
+                "gcf_id": [
+                    f"{self.prefix}{i+1:07}"
+                    for i in range(len(sorted_representatives))
+                ],
+                "nucleotide_representative": sorted_representatives,
+            }
+        )
+        return gcfs3
+
+    def _join_results(
+        self,
+        gcfs1,
+        gcfs2,
+        gcfs3,
+        input_sequences,
+    ):
+        #
         self.console.print(
             f"[bold green]{'Built':>12}[/] {len(gcfs3.gcf_id.unique())} "
             f"GCFs from {len(input_sequences)} initial clusters"
@@ -458,9 +487,39 @@ class ClusteringPipeline:
                 "filename",
             ]
         ]
+        return gcfs
 
+    # ---
+
+    def run(
+        self,
+        dataset: BaseDataset,
+        *,
+        clustering: bool = True,
+    ):
+        clusters_fna = self.workdir / "clusters.fna"
+        input_sequences = self.extract_clusters_to_file(dataset, clusters_fna)
+        step1, gcfs1 = self._run_nucleotide_deduplication(self.workdir, clusters_fna)
+        gcfs2 = self._run_nucleotide_clustering(self.workdir, step1)
+        representatives = self._extract_representatives(gcfs2)
+       
+        if clustering and len(representatives) > 1:
+            compositions = self._run_protein_clustering(
+                self.workdir, 
+                dataset,
+                representatives
+            )
+            gcfs3 = self._hierarchical_clustering(
+                compositions,
+            )
+        else:
+            compositions = None
+            gcfs3 = self._hierarchical_clustering_fallback(
+                representatives
+            )
+
+        gcfs = self._join_results(gcfs1, gcfs2, gcfs3, input_sequences)      
         return ClusteringResult(
             gcfs=gcfs,
             compositions=compositions,
-            proteins_faa=proteins_faa,
         )
