@@ -147,43 +147,6 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         default="GCF",
     )
 
-    group_clustering = extended_parser_group(
-        "Clustering", "Parameters to control the hierarchical clustering."
-    )
-    group_clustering.add_argument(
-        "--no-clustering",
-        help=extended_help_text("Disable the protein-level clustering."),
-        action="store_false",
-        dest="clustering",
-    )
-    group_clustering.add_argument(
-        "--clustering-method",
-        help=extended_help_text("The hierarchical method to use for protein-level clustering."),
-        default=params.clustering_method,
-        choices={
-            "average",
-            "single",
-            "complete",
-            "weighted",
-            "centroid",
-            "median",
-            "ward",
-            "linclust",
-        },
-    )
-    group_clustering.add_argument(
-        "--clustering-distance",
-        help=extended_help_text("The distance threshold after which to stop merging clusters."),
-        type=float,
-        default=params.clustering_distance,
-    )
-    group_clustering.add_argument(
-        "--precision",
-        help=extended_help_text("The numerical precision to use for computing distances for hierarchical clustering."),
-        default=params.precision,
-        choices={"half", "single", "double"},
-    )
-
     group_mmseqs_dedup = extended_parser_group(
         "MMSeqs2 Deduplication",
         "Parameters for the first nucleotide clustering step (exact/near-exact deduplication).",
@@ -316,6 +279,43 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         default=params.prot["coverage_mode"],
         choices=[0, 1, 2, 3, 4, 5],
         metavar="INT",
+    )
+
+    group_clustering = extended_parser_group(
+        "Clustering", "Parameters to control the hierarchical clustering."
+    )
+    group_clustering.add_argument(
+        "--no-clustering",
+        help=extended_help_text("Disable the protein-level clustering."),
+        action="store_false",
+        dest="clustering",
+    )
+    group_clustering.add_argument(
+        "--clustering-method",
+        help=extended_help_text("The hierarchical method to use for protein-level clustering."),
+        default=params.clustering_method,
+        choices={
+            "average",
+            "single",
+            "complete",
+            "weighted",
+            "centroid",
+            "median",
+            "ward",
+            "linclust",
+        },
+    )
+    group_clustering.add_argument(
+        "--clustering-distance",
+        help=extended_help_text("The distance threshold after which to stop merging clusters."),
+        type=float,
+        default=params.clustering_distance,
+    )
+    group_clustering.add_argument(
+        "--precision",
+        help=extended_help_text("The numerical precision to use for computing distances for hierarchical clustering."),
+        default=params.precision,
+        choices={"half", "single", "double"},
     )
 
     group_dataset = extended_parser_group(
