@@ -1,4 +1,5 @@
 import abc
+import contextlib
 import dataclasses
 import pathlib
 import tempfile
@@ -111,23 +112,19 @@ class Pipeline:
 
     def __init__(
         self,
-        workdir: pathlib.Path,
         params: typing.Optional[PipelineParameters] = None,
         *,
         prefix: str = "GCF",
         jobs: int = 1,
         mmseqs: typing.Optional[MMSeqs] = None,
         progress: typing.Optional[rich.progress.Progress] = None,
+        workdir: typing.Optional[pathlib.Path] = None,
     ):
         self.jobs = jobs
         self.params = params or PipelineParameters.default()
-        self.workdir = pathlib.Path(workdir)
+        self.workdir = None if workdir is None else pathlib.Path(workdir)
         self.prefix = prefix
-
-        if mmseqs is None:
-            self.mmseqs = MMSeqs(progress=progress, threads=self.jobs, tempdir=self.workdir)
-        else:
-            self.mmseqs = mmseqs
+        self.mmseqs = mmseqs
 
         self.progress = progress
         if progress is None:
@@ -304,6 +301,7 @@ class Pipeline:
         self,
         workdir: pathlib.Path,
         clusters_fna: pathlib.Path,
+        mmseqs: MMSeqs,
     ) -> Tuple[Clustering, pandas.DataFrame]:
         """Run the nucleotide deduplication stage of the pipeline.
 
@@ -315,7 +313,7 @@ class Pipeline:
 
         Returns:
             (`~igua.mmseqs.Clustering`, `pandas.DataFrame`): The clustering
-            file created by MMseqs, and a dataframe containing a summary of 
+            file created by MMseqs, and a dataframe containing a summary of
             the result.
 
         """
@@ -325,7 +323,7 @@ class Pipeline:
             "with [purple]MMSeqs2[/]"
         )
         with Stopwatch() as stopwatch:
-            db = Database.create(self.mmseqs, clusters_fna)
+            db = Database.create(mmseqs, clusters_fna)
             step1 = db.cluster(workdir / "step1.db", **self.params.nuc1)
             gcfs1 = step1.to_dataframe(columns=["fragment_representative", "cluster_id"]).sort_values("cluster_id")  # type: ignore
         self.console.print(
@@ -352,7 +350,7 @@ class Pipeline:
                 created at the previous stage.
 
         Returns:
-            `pandas.DataFrame`: The result of the clustering on the 
+            `pandas.DataFrame`: The result of the clustering on the
             representative sequences of the ``step1`` clustering.
 
         """
@@ -382,11 +380,11 @@ class Pipeline:
         """Extract the representative clusters in ``gcfs2`` into a index.
 
         Arguments:
-            gcfs2 (`pandas.DataFrame`): The clustering results of the 
+            gcfs2 (`pandas.DataFrame`): The clustering results of the
                 second stage.
 
         Returns:
-            `dict` of `str` to `int`: A dictionary mapping every unique 
+            `dict` of `str` to `int`: A dictionary mapping every unique
             representative cluster in ``gcfs2`` to a single index.
 
         """
@@ -409,6 +407,7 @@ class Pipeline:
         workdir: pathlib.Path,
         dataset: BaseDataset,
         representatives: typing.Collection[str],
+        mmseqs: MMSeqs,
     ) -> anndata.AnnData:
         """Run protein clustering and build a compositional matrix.
 
@@ -417,11 +416,11 @@ class Pipeline:
                 to use for processing data.
             dataset (`~igua.dataset.BaseDataset`): The dataset containing
                 the gene clusters to extract and their proteins.
-            representatives (`collections.abc.Collection` of `str`): A 
+            representatives (`collections.abc.Collection` of `str`): A
                 collection of gene cluster IDs to extract proteins from.
 
         Returns:
-            `anndata.AnnData`: A compositional matrix derived from the 
+            `anndata.AnnData`: A compositional matrix derived from the
             protein clustering. See `ClusteringPipeline._make_compositions`
             for more information.
 
@@ -439,7 +438,7 @@ class Pipeline:
             f"[bold blue]{'Starting':>12}[/] protein clustering step with [purple]MMSeqs2[/]"
         )
         with Stopwatch() as stopwatch:
-            prot_db = Database.create(self.mmseqs, proteins_faa)
+            prot_db = Database.create(mmseqs, proteins_faa)
             prot_result = prot_db.cluster(workdir / "step3.db", **self.params.prot)
             prot_clusters = prot_result.to_dataframe(
                 columns=["protein_representative", "protein_id"]
@@ -478,7 +477,7 @@ class Pipeline:
         """Perform hierarchical (or linear) clustering on the given data.
 
         Arguments:
-            compositions (`anndata.AnnData`): A compositional matrix 
+            compositions (`anndata.AnnData`): A compositional matrix
                 obtained from the protein clustering.
 
         Returns:
@@ -613,7 +612,7 @@ class Pipeline:
         Arguments:
             dataset (`~igua.dataset.base.BaseDataset`): A dataset containing
                 the gene clusters to cluster into families.
-            clustering (`bool`): Set to `False` to disable the protein 
+            clustering (`bool`): Set to `False` to disable the protein
                 composition clustering (3rd step of the pipeline). If `False`,
                 the clustering pipeline mostly performs genomic-level
                 deduplication.
@@ -623,29 +622,46 @@ class Pipeline:
             See class-level documentation for more information.
 
         """
-        clusters_fna = self.workdir / "clusters.fna"
-        input_sequences = self._extract_clusters_to_file(dataset, clusters_fna)
-        step1, gcfs1 = self._run_nucleotide_deduplication(self.workdir, clusters_fna)
-        gcfs2 = self._run_nucleotide_clustering(self.workdir, step1)
-        representatives = self._extract_representatives(gcfs2)
-
-        if clustering and len(representatives) > 1:
-            compositions = self._run_protein_clustering(
-                self.workdir,
-                dataset,
-                representatives
-            )
-            gcfs3 = self._hierarchical_clustering(
-                compositions,
-            )
+        # create a context to use the user-provided temporary directory
+        # or create one if none was given
+        if self.workdir is None:
+            workdir_context = tempfile.TemporaryDirectory(prefix="igua-")
         else:
-            compositions = None
-            gcfs3 = self._hierarchical_clustering_fallback(
-                representatives
-            )
+            workdir_context = contextlib.nullcontext(self.workdir)
 
+        with workdir_context as workdir:
+            workdir = pathlib.Path(workdir)
+            # use the user-provided MMseqs or create a default one
+            mmseqs = self.mmseqs or MMSeqs(
+                progress=self.progress,
+                threads=self.jobs,
+                tempdir=workdir
+            )
+            # extract input nucleotides
+            clusters_fna = workdir / "clusters.fna"
+            input_sequences = self._extract_clusters_to_file(dataset, clusters_fna)
+            # run first two steps of clustering and get nucleotide representatives
+            step1, gcfs1 = self._run_nucleotide_deduplication(workdir, clusters_fna, mmseqs)
+            gcfs2 = self._run_nucleotide_clustering(workdir, step1)
+            representatives = self._extract_representatives(gcfs2)
+            # run protein clustering if enabled and if there are enough
+            # gene clusters left
+            if clustering and len(representatives) > 1:
+                compositions = self._run_protein_clustering(
+                    workdir,
+                    dataset,
+                    representatives,
+                    mmseqs,
+                )
+                gcfs3 = self._hierarchical_clustering(
+                    compositions,
+                )
+            else:
+                compositions = None
+                gcfs3 = self._hierarchical_clustering_fallback(
+                    representatives
+                )
+
+        # generate result table
         gcfs = self._join_results(gcfs1, gcfs2, gcfs3, input_sequences)
-        return PipelineResult(
-            gcfs=gcfs,
-            compositions=compositions,
-        )
+        return PipelineResult(gcfs=gcfs, compositions=compositions)
