@@ -317,6 +317,12 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         default=params.clustering_precision,
         choices={"half", "single", "double"},
     )
+    group_clustering.add_argument(
+        "--no-clustering-weight",
+        help=extended_help_text("Disable weighting by protein length when computing distances for hierarchical clustering."),
+        action="store_false",
+        dest="clustering_weight",
+    )
 
     group_dataset = extended_parser_group(
         "Dataset Configuration",
@@ -442,6 +448,7 @@ def get_mmseqs_params(args: argparse.Namespace) -> ClusteringParameters:
         clustering_method=args.clustering_method,
         clustering_distance=args.clustering_distance,
         clustering_precision=args.clustering_precision,
+        clustering_weight="protein" if args.clustering_weight else None,
     )
 
 

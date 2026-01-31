@@ -56,7 +56,7 @@ class HierarchicalClustering(BaseClustering):
         # (used to rescale the absolute distances to a relative range)
         r = X.shape[0]
         if weights is None:
-            total = X.sum(axis=1, dtype=numpy.int32)
+            total = X.sum(axis=1, dtype=numpy.int32).A1
         else:
             total = X @ weights
 
@@ -86,7 +86,7 @@ class HierarchicalClustering(BaseClustering):
         X: scipy.sparse.spmatrix,
         weights: typing.Optional[numpy.ndarray] = None,
     ) -> numpy.ndarray:
-        if X.shape[1] != weights.shape[0]:
+        if weights is not None and X.shape[1] != weights.shape[0]:
             raise ValueError("inconsistent shapes between X and weights")
         pdist = self._compute_distances(X, weights)
         Z = linkage(pdist, method=self.method)
@@ -112,6 +112,8 @@ class LinearClustering(BaseClustering):
         # check matrix format
         if not isinstance(X, scipy.sparse.csr_matrix):
             raise TypeError(f"expected csr_matrix, got {type(X).__name__}")
+        if weights is not None and X.shape[1] != weights.shape[0]:
+            raise ValueError("inconsistent shapes between X and weights")
 
         # make sure the sparse matrix has sorted indices (necessary for
         # the distance algorithm to work without returning bogus values)
@@ -126,7 +128,7 @@ class LinearClustering(BaseClustering):
         # (used to rescale the absolute distances to a relative range)
         r = X.shape[0]
         if weights is None:
-            total = X.sum(axis=1, dtype=numpy.int32)
+            total = X.sum(axis=1, dtype=numpy.int32).A1
         else:
             total = X @ weights
 

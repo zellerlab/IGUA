@@ -62,6 +62,7 @@ class ClusteringParameters:
     clustering_method: Literal["average", "single", "complete", "weighted", "centroid", "median", "ward"]
     clustering_distance: float
     clustering_precision: Literal["half", "single", "double"]
+    clustering_weight: Literal["protein", None]
 
     @classmethod
     def default(cls) -> "ClusteringParameters":
@@ -93,6 +94,7 @@ class ClusteringParameters:
             clustering_method="average",
             clustering_distance=0.8,
             clustering_precision="double",
+            clustering_weight="protein",
         )
 
 
@@ -333,7 +335,7 @@ class ClusteringPipeline:
                 f"protein representatives for {len(prot_clusters)} proteins"
             )
 
-            # build weighted compositional array
+            # build compositional array
             self.console.print(
                 f"[bold blue]{'Building':>12}[/] protein compositional array"
             )
@@ -343,15 +345,20 @@ class ClusteringPipeline:
                 protein_representatives,
             )
 
+            # use weights unless disabled
+            if self.params.clustering_weight == "protein":
+                weights = compositions.var["size"].values
+            elif self.params.clustering_weight is None:
+                weights = None
+            else:
+                raise ValueError(f"invalid clustering weight: {self.params.clustering_weight!r}")
+
             # run clustering based on protein array membership
             self.console.print(
                 f"[bold blue]{'Clustering':>12}[/] gene clusters using "
                 f"{self.params.clustering_method} linkage"
             )
-            flat = self.clustering.cluster(
-                compositions.X,
-                weights=compositions.var["size"].values,
-            )
+            flat = self.clustering.cluster(compositions.X, weights)
 
             # build GCFs based on flat clustering
             gcfs3 = pandas.DataFrame(
