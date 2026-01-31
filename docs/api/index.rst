@@ -52,6 +52,7 @@ Datasets
    :hidden:
 
    Base <dataset/base>
+   List <dataset/list>
    GenBank <dataset/genbank>
    antiSMASH <dataset/antismash>
    FASTA/GFF <dataset/fasta_gff>
