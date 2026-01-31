@@ -9,7 +9,7 @@ from scipy.cluster.hierarchy import fcluster, DisjointSet
 from .hca import linkage, manhattan, manhattan_pair
 
 
-class BaseClustering(abc.ABC):
+class ClusteringStrategy(abc.ABC):
 
     @abc.abstractmethod
     def cluster(
@@ -21,7 +21,7 @@ class BaseClustering(abc.ABC):
         """
 
 
-class HierarchicalClustering(BaseClustering):
+class HierarchicalClustering(ClusteringStrategy):
     """A clustering method implemeting hierarchical clustering.
     """
 
@@ -93,7 +93,7 @@ class HierarchicalClustering(BaseClustering):
         return fcluster(Z, criterion="distance", t=self.distance)
 
 
-class LinearClustering(BaseClustering):
+class LinearClustering(ClusteringStrategy):
     """A clustering method similar to MMseqs2 linear clustering.
     """
 
