@@ -11,13 +11,14 @@ Pipeline
 .. currentmodule:: igua.pipeline
 
 .. autosummary::
+   :no-sign
 
    ClusteringParameters
    ClusteringPipeline
    ClusteringResult
 
 .. toctree::
-   :caption: Data Structures
+   :caption: Pipeline
    :maxdepth: 1
    :hidden:
 
@@ -36,7 +37,7 @@ Clustering Strategy
    LinearClustering
 
 .. toctree::
-   :caption: Data Structures
+   :caption: Clustering Strategy
    :maxdepth: 1
    :hidden:
 
