@@ -35,6 +35,7 @@ from .dataset.defensefinder import DefenseFinderDataset
 from .dataset.list import DatasetList
 from .mmseqs import MMSeqs, Database, Clustering
 from .pipeline import ClusteringParameters, ClusteringPipeline
+from ._utils import Stopwatch
 
 
 def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
@@ -465,79 +466,68 @@ def get_protein_representative(
 
 
 def report_completion(
-    start_time: datetime.datetime,
-    end_time: datetime.datetime,
+    stopwatch: Stopwatch,
     console: rich.console.Console,
 ) -> None:
-    end_time_str = end_time.strftime("%Y-%m-%d %H:%M:%S")
-    total_time = end_time - start_time
+    end_time_str = stopwatch.stop_datetime.strftime("%Y-%m-%d at %H:%M:%S")
+    time_str = stopwatch.total_human()
 
-    total_seconds = int(total_time.total_seconds())
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-
-    if hours > 0:
-        time_str = f"{hours}h {minutes}m {seconds}s"
-    elif minutes > 0:
-        time_str = f"{minutes}m {seconds}s"
-    else:
-        time_str = f"{seconds}s"
-
-    console.print(f"[bold blue]{'Completed':>12}[/] {end_time_str}")
+    console.print(f"[bold blue]{'Completed':>12}[/] on {end_time_str}")
     console.print(f"[bold green]{'Total time':>12}[/] {time_str}")
 
 
 def main(argv: typing.Optional[typing.List[str]] = None) -> int:
     # retrieve argv
     argv = sys.argv[1:] if argv is None else argv
+   
     # build parser and get arguments
     parser = build_parser(argv)
     if not isinstance(argcomplete, ImportError):
         argcomplete.autocomplete(parser)
     args = parser.parse_args(argv)
 
-    # measure start of process
-    start_time = datetime.datetime.now()
-    start_time_str = start_time.strftime("%Y-%m-%d %H:%M:%S")
-
-    # extract MMseqs paremeters from command line
-    params = get_mmseqs_params(args)
-
-    # use user provided workdir or create a new one in `tempfile`
-    if args.workdir is None:
-        tempdir = tempfile.TemporaryDirectory(prefix="igua-")
-    else:
-        tempdir = pathlib.Path(args.workdir)
-        tempdir.mkdir(parents=True, exist_ok=True)
-        tempdir = tempfile.TemporaryDirectory(prefix="igua-", dir=workdir)
-
-    # validate individual file arguments
-    individual_args = [args.cluster_tsv, args.gff_file, args.genome_fasta, args.protein_fasta]
-    using_individual_files = any(individual_args)
-    if using_individual_files:
-        if not all(individual_args):
-            parser.error(
-                "Individual file mode requires ALL of: "
-                "--cluster-tsv, --gff-file, --genome-fasta, --protein-fasta"
-            )
-
-        if not args.input:
-            input_dict_df = {
-                "genome_id": [os.path.basename(args.genome_fasta).split(".")[0]],
-                "cluster_tsv": [str(args.cluster_tsv)],
-                "gff_file": [str(args.gff_file)],
-                "genome_fasta_file": [str(args.genome_fasta)],
-                "protein_fasta_file": [str(args.protein_fasta)],
-            }
-
-            input_df = pandas.DataFrame(input_dict_df)
-            temp_tsv = workdir / "metadata.tsv"
-            input_df.to_csv(temp_tsv, sep="\t", index=False)
-            args.input = [temp_tsv]
-    elif not args.input:
-        parser.error("Input files (-i/--input) are required")
-
     with contextlib.ExitStack() as ctx:
+
+        # use a stopwatch to measure time
+        stopwatch = ctx.enter_context(Stopwatch())
+
+        # extract MMseqs parameters from command line
+        params = get_mmseqs_params(args)
+
+        # use user provided workdir or create a new one in `tempfile`
+        if args.workdir is None:
+            tempdir = tempfile.TemporaryDirectory(prefix="igua-")
+        else:
+            tempdir = pathlib.Path(args.workdir)
+            tempdir.mkdir(parents=True, exist_ok=True)
+            tempdir = tempfile.TemporaryDirectory(prefix="igua-", dir=workdir)
+
+        # validate individual file arguments
+        individual_args = [args.cluster_tsv, args.gff_file, args.genome_fasta, args.protein_fasta]
+        using_individual_files = any(individual_args)
+        if using_individual_files:
+            if not all(individual_args):
+                parser.error(
+                    "Individual file mode requires ALL of: "
+                    "--cluster-tsv, --gff-file, --genome-fasta, --protein-fasta"
+                )
+
+            if not args.input:
+                input_dict_df = {
+                    "genome_id": [os.path.basename(args.genome_fasta).split(".")[0]],
+                    "cluster_tsv": [str(args.cluster_tsv)],
+                    "gff_file": [str(args.gff_file)],
+                    "genome_fasta_file": [str(args.genome_fasta)],
+                    "protein_fasta_file": [str(args.protein_fasta)],
+                }
+
+                input_df = pandas.DataFrame(input_dict_df)
+                temp_tsv = workdir / "metadata.tsv"
+                input_df.to_csv(temp_tsv, sep="\t", index=False)
+                args.input = [temp_tsv]
+        elif not args.input:
+            parser.error("Input files (-i/--input) are required")
+
         # acquire temporary folder
         workdir = pathlib.Path(ctx.enter_context(tempdir))
 
@@ -549,7 +539,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
                 *rich.progress.Progress.get_default_columns(),
             )
         )
-        progress.console.print(f"[bold blue]{'Started':>12}[/] {start_time_str}")
+        progress.console.print(f"[bold blue]{'Started':>12}[/] on {stopwatch.start_datetime.strftime('%Y-%m-%d at %H:%M:%S')}")
 
         # check mmseqs version (and if an mmseqs binary is available)
         mmseqs = MMSeqs(progress=progress, threads=args.jobs, tempdir=workdir)
@@ -613,7 +603,6 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
             )
 
     # report runtime before exiting
-    end_time = datetime.datetime.now()
-    report_completion(start_time, end_time, progress.console)
+    report_completion(stopwatch, progress.console)
 
     return 0
