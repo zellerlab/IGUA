@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "igua"
-version = "0.1.0-post.1"
+version = "0.2.0-dev.1"
 description = "Iterative Gene clUster Analysis, a high-throughput method for gene cluster family identification."
 readme = 'README.md'
 requires-python = ">=3.7"

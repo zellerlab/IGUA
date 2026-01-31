@@ -152,7 +152,7 @@ class LinearClustering(BaseClustering):
             #       other query efficiently in a single call
             for query in indices:
                 d = manhattan_pair(X.data, X.indices, X.indptr, weights, query, centroid)
-                d /= (clusters_aa[query] + clusters_aa[centroid]).clip(min=1.0)
+                d /= numpy.clip(clusters_aa[query] + clusters_aa[centroid], min=1.0)
                 if d <= self.distance:
                     ds.merge(query, centroid)
 
