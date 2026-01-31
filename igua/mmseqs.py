@@ -223,7 +223,7 @@ class MMSeqs(object):
             stdout, stderr = process.communicate()
             return stdout.decode().strip()
         except OSError as err:
-            raise RuntimeError(f"Failed to find MMseqs2 binary {self.binary!r}") from err
+            raise RuntimeError(f"Failed to find MMSeqs2 binary {self.binary!r}") from err
 
 
 class DatabaseType(enum.IntEnum):
@@ -236,6 +236,11 @@ class _MMSeqsFile(object):
     def __init__(self, mmseqs: MMSeqs, path: pathlib.Path):
         self.mmseqs = mmseqs
         self.path = path
+
+    def remove(self):
+        """Remove the MMSeqs2 file.
+        """
+        self.mmseqs.run("rmdb", self.path)
 
 
 class Database(_MMSeqsFile):
