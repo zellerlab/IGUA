@@ -15,7 +15,7 @@ fn manhattan_pair_impl<T>(
     indptr: &[i32],
     indices: &[i32],
     data: &[i32],
-    weights: &[i64],
+    weights: Option<&[i64]>,
     px: usize,
     py: usize,
 ) -> T 
@@ -32,18 +32,18 @@ where
     while i < i_next && j < j_next {
         match indices[i].cmp(&indices[j]) {
             Ordering::Equal => {
-                let w = weights[indices[i] as usize];
+                let w = weights.map(|w| w[indices[i] as usize]).unwrap_or(1);
                 d += data[i].abs_diff(data[j]) as u64 * w as u64;
                 i += 1;
                 j += 1;
             }
             Ordering::Less => {
-                let w = weights[indices[i] as usize];
+                let w = weights.map(|w| w[indices[i] as usize]).unwrap_or(1);
                 d += data[i].abs() as u64 * w as u64;
                 i += 1;
             }
             Ordering::Greater => {
-                let w = weights[indices[j] as usize];
+                let w = weights.map(|w| w[indices[j] as usize]).unwrap_or(1);
                 d += data[j].abs() as u64 * w as u64;
                 j += 1;
             }
@@ -52,13 +52,13 @@ where
 
     if i == i_next {
         while j < j_next {
-            let w = weights[indices[j] as usize];
+                let w = weights.map(|w| w[indices[j] as usize]).unwrap_or(1);
             d += data[j].abs() as u64 * w as u64;
             j += 1;
         }
     } else {
         while i < i_next {
-            let w = weights[indices[i] as usize];
+            let w = weights.map(|w| w[indices[i] as usize]).unwrap_or(1);
             d += data[i].abs() as u64 * w as u64;
             i += 1;
         }
@@ -72,7 +72,7 @@ fn manhattan_impl<'py, T>(
     indptr: &[i32],
     indices: &[i32],
     data: &[i32],
-    weights: &[i64],
+    weights: Option<&[i64]>,
     output: &mut [T],
     threads: usize,
 ) -> PyResult<()> 
@@ -132,7 +132,7 @@ pub fn manhattan<'py>(
     data: &Bound<'py, PyArray<i32, numpy::Ix1>>,
     indices: &Bound<'py, PyArray<i32, numpy::Ix1>>,
     indptr: &Bound<'py, PyArray<i32, numpy::Ix1>>,
-    weights: &Bound<'py, PyArray<i64, numpy::Ix1>>,
+    weights: Option<&Bound<'py, PyArray<i64, numpy::Ix1>>>,
     distances: &Bound<'py, PyAny>,
     threads: usize,
 ) -> PyResult<()> {
@@ -140,12 +140,20 @@ pub fn manhattan<'py>(
     let indptr_r = indptr.try_readonly()?;
     let indices_r = indices.try_readonly()?;
     let data_r = data.try_readonly()?;
-    let weights_r = weights.try_readonly()?;
     
     let indptr_s = indptr_r.as_slice()?;
     let indices_s = indices_r.as_slice()?;
     let data_s = data_r.as_slice()?;
-    let weights_s = weights_r.as_slice()?;
+
+    // weights are optional
+    let weights_r;
+    let weights_s;
+    if let Some(w) = weights {
+        weights_r = w.try_readonly()?;
+        weights_s = Some(weights_r.as_slice()?);
+    } else {
+        weights_s = None;
+    }
     
     let d = distances.as_borrowed();
     if let Ok(d) = <Bound<'py, PyArray::<f64, numpy::Ix1>>>::extract(d) {
@@ -172,20 +180,27 @@ pub fn manhattan_pair<'py>(
     data: &Bound<'py, PyArray<i32, numpy::Ix1>>,
     indices: &Bound<'py, PyArray<i32, numpy::Ix1>>,
     indptr: &Bound<'py, PyArray<i32, numpy::Ix1>>,
-    weights: &Bound<'py, PyArray<i64, numpy::Ix1>>,
+    weights: Option<&Bound<'py, PyArray<i64, numpy::Ix1>>>,
     i: usize,
     j: usize,
 ) -> PyResult<f64> {
-
     let indptr_r = indptr.try_readonly()?;
     let indices_r = indices.try_readonly()?;
     let data_r = data.try_readonly()?;
-    let weights_r = weights.try_readonly()?;
     
     let indptr_s = indptr_r.as_slice()?;
     let indices_s = indices_r.as_slice()?;
     let data_s = data_r.as_slice()?;
-    let weights_s = weights_r.as_slice()?;
+    
+    // weights are optional
+    let weights_r;
+    let weights_s;
+    if let Some(w) = weights {
+        weights_r = w.try_readonly()?;
+        weights_s = Some(weights_r.as_slice()?);
+    } else {
+        weights_s = None;
+    }
 
     return Ok(manhattan_pair_impl(indptr_s, indices_s, data_s, weights_s, i, j));
 }
