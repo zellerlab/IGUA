@@ -305,6 +305,9 @@ class ClusteringPipeline:
                 )
 
             # cluster proteins
+            self.console.print(
+                f"[bold blue]{'Starting':>12}[/] protein clustering step with [purple]MMSeqs2[/]"
+            )
             prot_db = Database.create(self.mmseqs, proteins_faa)
             prot_result = prot_db.cluster(self.workdir / "step3.db", **self.params.prot)
             prot_clusters = prot_result.to_dataframe(
@@ -332,7 +335,7 @@ class ClusteringPipeline:
 
             # build weighted compositional array
             self.console.print(
-                f"[bold blue]{'Building':>12}[/] weighted compositional array"
+                f"[bold blue]{'Building':>12}[/] protein compositional array"
             )
             compositions = self.make_compositions(
                 prot_clusters,
