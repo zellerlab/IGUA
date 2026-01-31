@@ -61,7 +61,7 @@ class ClusteringParameters:
     prot: Dict[str, object]
     clustering_method: Literal["average", "single", "complete", "weighted", "centroid", "median", "ward"]
     clustering_distance: float
-    precision: Literal["half", "single", "double"]
+    clustering_precision: Literal["half", "single", "double"]
 
     @classmethod
     def default(cls) -> "ClusteringParameters":
@@ -92,7 +92,7 @@ class ClusteringParameters:
             ),
             clustering_method="average",
             clustering_distance=0.8,
-            precision="double",
+            clustering_precision="double",
         )
 
 
@@ -141,7 +141,7 @@ class ClusteringPipeline:
             self.clustering = HierarchicalClustering(
                 method=self.params.clustering_method,
                 distance=self.params.clustering_distance,
-                precision=self.params.precision,
+                precision=self.params.clustering_precision,
                 jobs=self.jobs,
             )
 

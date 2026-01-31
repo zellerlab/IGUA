@@ -13,7 +13,7 @@ class BaseClustering(abc.ABC):
 
     @abc.abstractmethod
     def cluster(
-        self, 
+        self,
         X: scipy.sparse.csr_matrix,
         weights: typing.Optional[numpy.ndarray] = None,
     ) -> numpy.ndarray:
@@ -46,7 +46,7 @@ class HierarchicalClustering(BaseClustering):
         # check matrix format
         if not isinstance(X, scipy.sparse.csr_matrix):
             raise TypeError(f"expected csr_matrix, got {type(X).__name__}")
-        
+
         # make sure the sparse matrix has sorted indices (necessary for
         # the distance algorithm to work efficiently)
         if not X.has_sorted_indices:
@@ -54,9 +54,11 @@ class HierarchicalClustering(BaseClustering):
 
         # compute the number of amino acids per cluster
         r = X.shape[0]
-        clusters_aa = numpy.zeros(r, dtype=numpy.int32)
-        clusters_aa[:] = X.sum(axis=1) if weights is None else X @ weights
-        
+        if weights is None:
+            clusters_aa = X.sum(axis=1, dtype=numpy.int32)
+        else:
+            clusters_aa = X @ weights
+
         # compute manhattan distance on sparse matrix
         distance_vector = numpy.zeros(r * (r - 1) // 2, dtype=self.precision)
         manhattan(
@@ -71,7 +73,7 @@ class HierarchicalClustering(BaseClustering):
         n = 0
         for i in range(r - 1):
             l = r - (i + 1)
-            maxdist = (clusters_aa[i + 1 :] + clusters_aa[i]).clip(min=1)
+            maxdist = numpy.clip(clusters_aa[i + 1 :] + clusters_aa[i], min=1)
             distance_vector[n : n + l] /= maxdist
             n += l
         # enforce distances to be in [0, 1] (slight possibility of >1 due
@@ -115,7 +117,7 @@ class LinearClustering(BaseClustering):
         if not X.has_sorted_indices:
             X.sort_indices()
 
-        # also compute a csc_matrix form the input to support fast 
+        # also compute a csc_matrix form the input to support fast
         # selection of columns in the loop
         X_csc = X.tocsc()
 
@@ -123,8 +125,10 @@ class LinearClustering(BaseClustering):
         # FIXME: may not be reliable if we can disable weighting, replace
         #        by an additional argument most likely
         r = X.shape[0]
-        clusters_aa = numpy.zeros(r, dtype=numpy.int32)
-        clusters_aa[:] = X.sum(axis=1) if weights is None else X @ weights
+        if weights is None:
+            clusters_aa = X.sum(axis=1, dtype=numpy.int32)
+        else:
+            clusters_aa = X @ weights
 
         # use scipy DisjointSet / UnionFind to record clustering
         ds = DisjointSet(range(r))

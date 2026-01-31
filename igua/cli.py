@@ -312,9 +312,9 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         default=params.clustering_distance,
     )
     group_clustering.add_argument(
-        "--precision",
+        "--clustering-precision",
         help=extended_help_text("The numerical precision to use for computing distances for hierarchical clustering."),
-        default=params.precision,
+        default=params.clustering_precision,
         choices={"half", "single", "double"},
     )
 
@@ -441,7 +441,7 @@ def get_mmseqs_params(args: argparse.Namespace) -> ClusteringParameters:
         prot=params_prot,
         clustering_method=args.clustering_method,
         clustering_distance=args.clustering_distance,
-        precision=args.precision,
+        clustering_precision=args.clustering_precision,
     )
 
 
