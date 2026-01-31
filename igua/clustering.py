@@ -12,7 +12,11 @@ from .hca import linkage, manhattan, manhattan_pair
 class BaseClustering(abc.ABC):
 
     @abc.abstractmethod
-    def cluster(self, X: scipy.sparse.spmatrix) -> numpy.ndarray:
+    def cluster(
+        self, 
+        X: scipy.sparse.csr_matrix,
+        weights: typing.Optional[numpy.ndarray] = None,
+    ) -> numpy.ndarray:
         """Cluster the given observations.
         """
 
@@ -37,7 +41,7 @@ class HierarchicalClustering(BaseClustering):
     def _compute_distances(
         self,
         X: scipy.sparse.csr_matrix,
-        weights: numpy.ndarray,
+        weights: typing.Optional[numpy.ndarray] = None,
     ) -> numpy.ndarray:
         # check matrix format
         if not isinstance(X, scipy.sparse.csr_matrix):
@@ -51,7 +55,7 @@ class HierarchicalClustering(BaseClustering):
         # compute the number of amino acids per cluster
         r = X.shape[0]
         clusters_aa = numpy.zeros(r, dtype=numpy.int32)
-        clusters_aa[:] = X @ weights
+        clusters_aa[:] = X.sum(axis=1) if weights is None else X @ weights
         
         # compute manhattan distance on sparse matrix
         distance_vector = numpy.zeros(r * (r - 1) // 2, dtype=self.precision)
@@ -77,7 +81,7 @@ class HierarchicalClustering(BaseClustering):
     def cluster(
         self,
         X: scipy.sparse.spmatrix,
-        weights: numpy.ndarray,
+        weights: typing.Optional[numpy.ndarray] = None,
     ) -> numpy.ndarray:
         if X.shape[1] != weights.shape[0]:
             raise ValueError("inconsistent shapes between X and weights")
@@ -100,7 +104,7 @@ class LinearClustering(BaseClustering):
     def cluster(
         self,
         X: scipy.sparse.csr_matrix,
-        weights: numpy.ndarray,
+        weights: typing.Optional[numpy.ndarray] = None,
     ):
         # check matrix format
         if not isinstance(X, scipy.sparse.csr_matrix):
@@ -120,7 +124,7 @@ class LinearClustering(BaseClustering):
         #        by an additional argument most likely
         r = X.shape[0]
         clusters_aa = numpy.zeros(r, dtype=numpy.int32)
-        clusters_aa[:] = X @ weights
+        clusters_aa[:] = X.sum(axis=1) if weights is None else X @ weights
 
         # use scipy DisjointSet / UnionFind to record clustering
         ds = DisjointSet(range(r))
