@@ -1,15 +1,15 @@
 Pipeline
 ========
 
-.. autoclass:: igua.pipeline.ClusteringParameters
+.. autoclass:: igua.pipeline.PipelineParameters
    :members:
 
 
-.. autoclass:: igua.pipeline.ClusteringResult
+.. autoclass:: igua.pipeline.PipelineResult
    :members:
 
 
-.. autoclass:: igua.pipeline.ClusteringPipeline
+.. autoclass:: igua.pipeline.Pipeline
    :members:
    :special-members: __init__
 

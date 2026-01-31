@@ -11,7 +11,7 @@ Pipeline
 .. currentmodule:: igua.pipeline
 
 .. autosummary::
-   :no-sign
+   :nosignatures:
 
    ClusteringParameters
    ClusteringPipeline
@@ -31,6 +31,7 @@ Clustering Strategy
 .. currentmodule:: igua.clustering
 
 .. autosummary::
+   :nosignatures:
 
    ClusteringStrategy
    HierarchicalClustering
@@ -65,6 +66,7 @@ Base
 .. currentmodule:: igua.dataset.base
 
 .. autosummary::
+   :nosignatures:
 
     BaseDataset
 
@@ -75,6 +77,7 @@ List
 .. currentmodule:: igua.dataset.list
 
 .. autosummary::
+   :nosignatures:
 
     DatasetList
 
@@ -85,6 +88,7 @@ GenBank
 .. currentmodule:: igua.dataset.genbank
 
 .. autosummary::
+   :nosignatures:
 
     GenBankDataset
 
@@ -95,6 +99,7 @@ antiSMASH
 .. currentmodule:: igua.dataset.antismash
 
 .. autosummary::
+   :nosignatures:
 
     AntiSMASHGenBankDataset
     AntiSMASHZipDataset
@@ -106,6 +111,7 @@ Fasta/GFF
 .. currentmodule:: igua.dataset.fasta_gff
 
 .. autosummary::
+   :nosignatures:
 
     FastaGFFDataset
 
@@ -116,5 +122,6 @@ DefenseFinder
 .. currentmodule:: igua.dataset.defensefinder
 
 .. autosummary::
+   :nosignatures:
 
     DefenseFinderDataset
