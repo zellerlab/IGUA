@@ -37,7 +37,7 @@ class DatasetList(BaseDataset, Sequence[BaseDataset]):
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        representatives: typing.Container[str],
+        representatives: typing.Collection[str],
     ) -> typing.Iterator[Protein]:
         task = progress.add_task(f"[bold blue]{'Working':>9}[/]")
         for dataset in progress.track(self.datasets, task_id=task):

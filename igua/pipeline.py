@@ -3,7 +3,7 @@ import dataclasses
 import pathlib
 import tempfile
 import typing
-from typing import Dict, Literal
+from typing import Dict, Literal, Mapping
 
 import anndata
 import rich.console
@@ -15,7 +15,7 @@ import pandas
 from .dataset.base import BaseDataset
 from .dataset.defensefinder import DefenseFinderDataset
 from .dataset.fasta_gff import FastaGFFDataset
-from .mmseqs import MMSeqs, Database
+from .mmseqs import MMSeqs, Database, Clustering
 from .clustering import HierarchicalClustering, LinearClustering
 from ._utils import Stopwatch
 
@@ -149,11 +149,25 @@ class ClusteringPipeline:
 
     # ---
 
-    def extract_clusters_to_file(
+    def _extract_clusters_to_file(
         self,
         dataset: BaseDataset,
         output: pathlib.Path,
-    ):
+    ) -> pandas.DataFrame:
+        """Extract the dataset clusters to the given file.
+
+        Arguments:
+            dataset (`~igua.dataset.BaseDataset`): The dataset containing
+                the gene clusters to extract.
+            output (`pathlib.Path`): The path to the output file to
+                write gene clusters to.
+
+        Returns:
+            `pandas.DataFrame`: A table with columns ``cluster_id`` and
+            ``cluster_length`` reporting the ID and lengths of the
+            extracted clusters.
+
+        """
         # record processed sequences to flag duplicates
         done = set()
         n_duplicates = 0
@@ -184,12 +198,29 @@ class ClusteringPipeline:
         )
         return input_sequences
 
-    def extract_proteins_to_file(
+    def _extract_proteins_to_file(
         self,
         dataset: BaseDataset,
-        clusters: typing.Container[str],
+        clusters: typing.Collection[str],
         output: pathlib.Path,
     ) -> pandas.DataFrame:
+        """Extract the dataset proteins to the given file.
+
+        Arguments:
+            dataset (`~igua.dataset.BaseDataset`): The dataset containing
+                the gene clusters to extract and their proteins.
+            clusters (`~collections.abc.Collection` of `str`): A collection
+                of clusters from which to extract proteins (typically the
+                clusters selected as representatives in the previous step).
+            output (`pathlib.Path`): The path to the output file to write
+                proteins to.
+
+        Returns:
+            `pandas.DataFrame`: A table with columns ``protein_id``,
+            ``protein_length`` and ``cluster_id`` reporting the ID, length
+            and source cluster of the extracted proteins.
+
+        """
         self.console.print(
             f"[bold blue]{'Extracting':>12}[/] protein sequences from "
             "representative clusters"
@@ -206,14 +237,29 @@ class ClusteringPipeline:
             )
         return protein_sizes
 
-    # ---
-
-    def make_compositions(
+    def _make_compositions(
         self,
         protein_clusters: pandas.DataFrame,
         representatives: typing.Dict[str, int],
         protein_representatives: typing.Dict[str, int],
     ) -> anndata.AnnData:
+        """Build a compositional matrix from the given protein clusters.
+
+        Arguments:
+            protein_clusters (`pandas.DataFrame`): The clustering of
+                proteins returned by MMSeqs.
+            representatives (`dict` of `str` to `int`): The index mapping
+                gene cluster IDs to their index in the compositional table.
+            protein_representatives (`dict` of `str` to `int`): The index
+                mapping protein IDs to their index in the compositional
+                table.
+
+        Returns:
+            `~anndata.AnnData`: An annotated compositional matrix where
+            each cluster is represented as a combination of protein
+            counts.
+
+        """
         self.console.print(
             f"[bold blue]{'Building':>12}[/] protein compositional array"
         )
@@ -254,13 +300,25 @@ class ClusteringPipeline:
             ),
         )
 
-    # ---
-
     def _run_nucleotide_deduplication(
-        self, 
-        workdir,
-        clusters_fna,
-    ):
+        self,
+        workdir: pathlib.Path,
+        clusters_fna: pathlib.Path,
+    ) -> Tuple[Clustering, pandas.DataFrame]:
+        """Run the nucleotide deduplication stage of the pipeline.
+
+        Arguments:
+            workdir (`pathlib.Path`): The path to the temporary directory
+                to use for processing data.
+            clusters_fna (`pathlib.Path`): The path to a two-line FASTA
+                file containing the gene clusters to process.
+
+        Returns:
+            (`~igua.mmseqs.Clustering`, `pandas.DataFrame`): The clustering
+            file created by MMseqs, and a dataframe containing a summary of 
+            the result.
+
+        """
         # create initial sequence database
         self.console.print(
             f"[bold blue]{'Starting':>12}[/] nucleotide deduplication step "
@@ -282,9 +340,22 @@ class ClusteringPipeline:
 
     def _run_nucleotide_clustering(
         self,
-        workdir,
-        step1,
-    ):
+        workdir: pathlib.Path,
+        step1: Clustering,
+    ) -> pandas.DataFrame:
+        """Run the nucleotide clustering stage of the pipeline.
+
+        Arguments:
+            workdir (`pathlib.Path`): The path to the temporary directory
+                to use for processing data.
+            step1 (`~igua.mmseqs.Clustering`): The MMseqs clustering file
+                created at the previous stage.
+
+        Returns:
+            `pandas.DataFrame`: The result of the clustering on the 
+            representative sequences of the ``step1`` clustering.
+
+        """
         # cluster sequences
         self.console.print(
             f"[bold blue]{'Starting':>12}[/] nucleotide clustering step with [purple]MMSeqs2[/]"
@@ -306,8 +377,19 @@ class ClusteringPipeline:
 
     def _extract_representatives(
         self,
-        gcfs2
-    ):  
+        gcfs2: pandas.DataFrame
+    ) -> Dict[str, int]:
+        """Extract the representative clusters in ``gcfs2`` into a index.
+
+        Arguments:
+            gcfs2 (`pandas.DataFrame`): The clustering results of the 
+                second stage.
+
+        Returns:
+            `dict` of `str` to `int`: A dictionary mapping every unique 
+            representative cluster in ``gcfs2`` to a single index.
+
+        """
         # load representatives
         self.console.print(
             f"[bold blue]{'Extracting':>12}[/] representative clusters"
@@ -324,13 +406,29 @@ class ClusteringPipeline:
 
     def _run_protein_clustering(
         self,
-        workdir,
-        dataset,
-        representatives
-    ):
+        workdir: pathlib.Path,
+        dataset: BaseDataset,
+        representatives: typing.Collection[str],
+    ) -> anndata.AnnData:
+        """Run protein clustering and build a compositional matrix.
+
+        Arguments:
+            workdir (`pathlib.Path`): The path to the temporary directory
+                to use for processing data.
+            dataset (`~igua.dataset.BaseDataset`): The dataset containing
+                the gene clusters to extract and their proteins.
+            representatives (`collections.abc.Collection` of `str`): A 
+                collection of gene cluster IDs to extract proteins from.
+
+        Returns:
+            `anndata.AnnData`: A compositional matrix derived from the 
+            protein clustering. See `ClusteringPipeline._make_compositions`
+            for more information.
+
+        """
         # extract proteins and record sizes
         proteins_faa = workdir / "proteins.faa"
-        protein_sizes = self.extract_proteins_to_file(dataset, representatives, output=proteins_faa)
+        protein_sizes = self._extract_proteins_to_file(dataset, representatives, output=proteins_faa)
         if not proteins_faa.exists() or proteins_faa.stat().st_size == 0:
             self.console.print(
                 f"[bold yellow]{'Warning':>12}[/] No proteins extracted from input dataset"
@@ -367,7 +465,7 @@ class ClusteringPipeline:
             f"[bold green]{'Found':>12}[/] {len(protein_representatives)} "
             f"protein representatives for {len(prot_clusters)} proteins"
         )
-        return self.make_compositions(
+        return self._make_compositions(
             prot_clusters,
             representatives,
             protein_representatives,
@@ -375,8 +473,19 @@ class ClusteringPipeline:
 
     def _hierarchical_clustering(
         self,
-        compositions,
-    ):
+        compositions: anndata.AnnData,
+    ) -> pandas.DataFrame:
+        """Perform hierarchical (or linear) clustering on the given data.
+
+        Arguments:
+            compositions (`anndata.AnnData`): A compositional matrix 
+                obtained from the protein clustering.
+
+        Returns:
+            `pandas.DataFrame`: A table mapping each row of ``compositions``
+            to a GCF with arbitrary identifiers.
+
+        """
         # use weights unless disabled
         if self.params.clustering_weight == "protein":
             weights = compositions.var["size"].values
@@ -406,15 +515,15 @@ class ClusteringPipeline:
 
     def _hierarchical_clustering_fallback(
         self,
-        representatives,
-    ):
+        representatives: Mapping[str, int],
+    ) -> pandas.DataFrame:
         self.console.print(
             f"[bold yellow]{'Skipping':>12}[/] hierarchical clustering step"
         )
         compositions = None
         # proteins_faa = None
         sorted_representatives = sorted(
-            representatives, 
+            representatives,
             key=representatives.__getitem__
         )
         gcfs3 = pandas.DataFrame(
@@ -430,11 +539,13 @@ class ClusteringPipeline:
 
     def _join_results(
         self,
-        gcfs1,
-        gcfs2,
-        gcfs3,
-        input_sequences,
-    ):
+        gcfs1: pandas.DataFrame,
+        gcfs2: pandas.DataFrame,
+        gcfs3: pandas.DataFrame,
+        input_sequences: pandas.DataFrame,
+    ) -> pandas.DataFrame:
+        """Join the results of the different stages to a single dataframe.
+        """
         #
         self.console.print(
             f"[bold green]{'Built':>12}[/] {len(gcfs3.gcf_id.unique())} "
@@ -497,15 +608,30 @@ class ClusteringPipeline:
         *,
         clustering: bool = True,
     ):
+        """Run the clustering pipeline on the given dataset.
+
+        Arguments:
+            dataset (`~igua.dataset.base.BaseDataset`): A dataset containing
+                the gene clusters to cluster into families.
+            clustering (`bool`): Set to `False` to disable the protein 
+                composition clustering (3rd step of the pipeline). If `False`,
+                the clustering pipeline mostly performs genomic-level
+                deduplication.
+
+        Returns:
+            `~igua.pipeline.ClusteringResult`: The results of the pipeline.
+            See class-level documentation for more information.
+
+        """
         clusters_fna = self.workdir / "clusters.fna"
-        input_sequences = self.extract_clusters_to_file(dataset, clusters_fna)
+        input_sequences = self._extract_clusters_to_file(dataset, clusters_fna)
         step1, gcfs1 = self._run_nucleotide_deduplication(self.workdir, clusters_fna)
         gcfs2 = self._run_nucleotide_clustering(self.workdir, step1)
         representatives = self._extract_representatives(gcfs2)
-       
+
         if clustering and len(representatives) > 1:
             compositions = self._run_protein_clustering(
-                self.workdir, 
+                self.workdir,
                 dataset,
                 representatives
             )
@@ -518,7 +644,7 @@ class ClusteringPipeline:
                 representatives
             )
 
-        gcfs = self._join_results(gcfs1, gcfs2, gcfs3, input_sequences)      
+        gcfs = self._join_results(gcfs1, gcfs2, gcfs3, input_sequences)
         return ClusteringResult(
             gcfs=gcfs,
             compositions=compositions,

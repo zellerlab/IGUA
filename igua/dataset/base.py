@@ -92,15 +92,15 @@ class BaseDataset(abc.ABC):
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        cluster_ids: typing.Container[str],
+        cluster_ids: typing.Collection[str],
     ) -> typing.Iterable[Protein]:
         """Extracts protein sequences from GenBank files.
 
         Arguments:
             progress (`rich.progress.Progress`): A `Progress` instance
                 that can be used for tracking progress.
-            clusters (`collections.abc.Container` of `str`): A container
-                storing which clusters to extract proteins from.
+            clusters (`collections.abc.Collection` of `str`): A collection
+                of cluster IDs from which to extract proteins.
 
         Yields:
             `Protein`: A protein object for each protein of the gene 
