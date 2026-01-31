@@ -56,7 +56,7 @@ class _FASTASink(_BaseSink):
 
 
 @dataclasses.dataclass
-class ClusteringParameters:
+class PipelineParameters:
     nuc1: Dict[str, object]
     nuc2: Dict[str, object]
     prot: Dict[str, object]
@@ -66,7 +66,7 @@ class ClusteringParameters:
     clustering_weight: Literal["protein", None]
 
     @classmethod
-    def default(cls) -> "ClusteringParameters":
+    def default(cls) -> "PipelineParameters":
         """Create new default clustering parameters.
         """
         return cls(
@@ -100,19 +100,19 @@ class ClusteringParameters:
 
 
 @dataclasses.dataclass
-class ClusteringResult:
+class PipelineResult:
     gcfs: pandas.DataFrame
     compositions: typing.Optional[anndata.AnnData]
 
 
-class ClusteringPipeline:
+class Pipeline:
     """The IGUA multi-stage clustering pipeline.
     """
 
     def __init__(
         self,
         workdir: pathlib.Path,
-        params: typing.Optional[ClusteringParameters] = None,
+        params: typing.Optional[PipelineParameters] = None,
         *,
         prefix: str = "GCF",
         jobs: int = 1,
@@ -120,7 +120,7 @@ class ClusteringPipeline:
         progress: typing.Optional[rich.progress.Progress] = None,
     ):
         self.jobs = jobs
-        self.params = params or ClusteringParameters.default()
+        self.params = params or PipelineParameters.default()
         self.workdir = pathlib.Path(workdir)
         self.prefix = prefix
 
@@ -619,7 +619,7 @@ class ClusteringPipeline:
                 deduplication.
 
         Returns:
-            `~igua.pipeline.ClusteringResult`: The results of the pipeline.
+            `~igua.pipeline.PipelineResult`: The results of the pipeline.
             See class-level documentation for more information.
 
         """
@@ -645,7 +645,7 @@ class ClusteringPipeline:
             )
 
         gcfs = self._join_results(gcfs1, gcfs2, gcfs3, input_sequences)
-        return ClusteringResult(
+        return PipelineResult(
             gcfs=gcfs,
             compositions=compositions,
         )

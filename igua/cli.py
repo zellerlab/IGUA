@@ -34,13 +34,13 @@ from .dataset.fasta_gff import FastaGFFDataset
 from .dataset.defensefinder import DefenseFinderDataset
 from .dataset.list import DatasetList
 from .mmseqs import MMSeqs, Database, Clustering
-from .pipeline import ClusteringParameters, ClusteringPipeline
+from .pipeline import PipelineParameters, Pipeline
 from ._utils import Stopwatch
 
 
 def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
     show_all = '--help-all' in argv
-    params = ClusteringParameters.default()
+    params = PipelineParameters.default()
 
     parser = argparse.ArgumentParser(
         prog="igua",
@@ -414,7 +414,7 @@ def create_dataset(
         raise ValueError(f"Unknown dataset type: {dataset_type}")
 
 
-def get_mmseqs_params(args: argparse.Namespace) -> ClusteringParameters:
+def get_mmseqs_params(args: argparse.Namespace) -> PipelineParameters:
     """Build MMSeqs2 parameter dictionaries from command-line arguments."""
 
     params_nuc1 = dict(
@@ -442,7 +442,7 @@ def get_mmseqs_params(args: argparse.Namespace) -> ClusteringParameters:
         sequence_identity=args.prot_identity,
     )
 
-    return ClusteringParameters(
+    return PipelineParameters(
         nuc1=params_nuc1, 
         nuc2=params_nuc2, 
         prot=params_prot,
@@ -551,7 +551,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
             return errno.ENOENT
 
         # create a pipeline with the configuration from the CLI
-        pipeline = ClusteringPipeline(
+        pipeline = Pipeline(
             params=params,
             mmseqs=mmseqs,
             workdir=workdir, 
