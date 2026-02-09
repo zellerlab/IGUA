@@ -166,6 +166,8 @@ intersphinx_mapping = {
     "biopython": ("https://biopython.org/docs/latest/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "rich": ("https://rich.readthedocs.io/en/latest/", None),
+    "anndata": ("https://anndata.readthedocs.io/en/latest/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
 }
 
 # -- Options for recommonmark extension --------------------------------------
