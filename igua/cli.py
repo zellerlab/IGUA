@@ -443,8 +443,8 @@ def get_mmseqs_params(args: argparse.Namespace) -> PipelineParameters:
     )
 
     return PipelineParameters(
-        nuc1=params_nuc1, 
-        nuc2=params_nuc2, 
+        nuc1=params_nuc1,
+        nuc2=params_nuc2,
         prot=params_prot,
         clustering_method=args.clustering_method,
         clustering_distance=args.clustering_distance,
@@ -479,7 +479,7 @@ def report_completion(
 def main(argv: typing.Optional[typing.List[str]] = None) -> int:
     # retrieve argv
     argv = sys.argv[1:] if argv is None else argv
-   
+
     # build parser and get arguments
     parser = build_parser(argv)
     if not isinstance(argcomplete, ImportError):
@@ -554,8 +554,8 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
         pipeline = Pipeline(
             params=params,
             mmseqs=mmseqs,
-            workdir=workdir, 
-            progress=progress, 
+            workdir=workdir,
+            progress=progress,
         )
 
         # create appropriate dataset handler
@@ -563,7 +563,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
 
         # run pipeline and retrieve GCFs
         result = pipeline.run(
-            dataset, 
+            dataset,
             clustering=args.clustering,
         )
 

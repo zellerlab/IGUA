@@ -10,12 +10,14 @@ import typing
 import uuid
 from dataclasses import asdict, dataclass
 
+import Bio.SeqIO
 import pandas as pd
 import polars as pl
 import rich.progress
 from rich.console import Console
 
 from .base import BaseDataset, Cluster, Protein
+from .._utils import zopen
 
 
 class TarCache:
@@ -77,8 +79,8 @@ def _parse_tar_path(
 
 
 def smart_open(
-    path: pathlib.Path, 
-    mode: str = "rb", 
+    path: pathlib.Path,
+    mode: str = "rb",
     tar_cache: typing.Optional[TarCache] = None,
 ) -> typing.BinaryIO:
     """Open file, handling regular files and tar archives.
@@ -260,26 +262,8 @@ def read_fasta(
         Tuple of (sequence_id, full_header, sequence_string).
     """
     with smart_open(file_path, tar_cache=tar_cache) as reader:
-        name = None
-        full_header = None
-        sequence = []
-
-        for line in io.TextIOWrapper(reader, encoding="utf-8"):
-            line = line.strip()
-            if not line:
-                continue
-
-            if line.startswith(">"):
-                if name is not None:
-                    yield name, full_header, "".join(sequence)
-                full_header = line[1:]
-                name = full_header.split()[0]
-                sequence = []
-            else:
-                sequence.append(line)
-
-        if name is not None:
-            yield name, full_header, "".join(sequence)
+        with io.TextIOWrapper(reader, encoding="utf-8") as text_reader:
+            yield from Bio.SeqIO.parse(text_reader, "fasta")
 
 
 class ProteinIndex:
@@ -309,12 +293,10 @@ class ProteinIndex:
         if self._loaded:
             return
 
-        for seq_id, full_header, sequence in read_fasta(
-            self.path, tar_cache=self._tar_cache
-        ):
-            if gene_ids is None or seq_id in gene_ids:
-                self._sequences[seq_id] = sequence
-                self._headers[seq_id] = full_header
+        for record in read_fasta(self.path, tar_cache=self._tar_cache):
+            if gene_ids is None or record.id in gene_ids:
+                self._sequences[record.id] = str(record.seq)
+                self._headers[record.id] = record.description
 
         self._loaded = True
 
@@ -352,34 +334,12 @@ class ProteinIndex:
         if seq:
             return seq
 
-        with io.TextIOWrapper(smart_open(self.path)) as f:
-            seq_id = None
-            sequence = []
-            full_header = None
-
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-
-                if line.startswith(">"):
-                    if seq_id and full_header:
-                        for attr in ["locus_tag", "ID", "Name", "gene"]:
-                            if re.search(
-                                rf"\[{attr}=({re.escape(gene_id)})\]", full_header
-                            ):
-                                return "".join(sequence)
-
-                    full_header = line[1:]
-                    seq_id = full_header.split()[0]
-                    sequence = []
-                else:
-                    sequence.append(line)
-
-            if seq_id and full_header:
-                for attr in ["locus_tag", "ID", "Name", "gene"]:
-                    if re.search(rf"\[{attr}=({re.escape(gene_id)})\]", full_header):
-                        return "".join(sequence)
+        with smart_open(self.path) as reader:
+            with io.TextIOWrapper(reader, encoding="utf-8") as text_reader:
+                for record in Bio.SeqIO.parse(text_reader, "fasta"):
+                    for attr in ["locus_tag", "ID", "Name", "gene"]:
+                        if re.search(rf"\[{attr}=({re.escape(gene_id)})\]", record.description):
+                            return str(record.seq)
 
         return None
 
@@ -721,19 +681,19 @@ class GenomeResources:
 
         # results = []
 
-        for seq_id, _, sequence in read_fasta(
+        for record in read_fasta(
             self.context.genome_fasta, tar_cache=self._tar_cache
         ):
-            if seq_id not in contig_groups:
+            if record.id not in contig_groups:
                 continue
 
             if verbose:
                 self.console.print(
-                    f"[bold blue]{'Loading':>12}[/] contig [blue]{seq_id}[/] ({len(contig_groups[seq_id])} clusters) for [bold cyan]{self.context.genome_id}[/]"
+                    f"[bold blue]{'Loading':>12}[/] contig [blue]{record.id}[/] ({len(contig_groups[record.id])} clusters) for [bold cyan]{self.context.genome_id}[/]"
                 )
 
-            for coord in contig_groups[seq_id]:
-                subseq = sequence[coord.start_coord - 1 : coord.end_coord]
+            for coord in contig_groups[record.id]:
+                subseq = str(record.seq[coord.start_coord - 1 : coord.end_coord])
                 yield Cluster(coord.cluster_id, subseq, source=coord.fasta_file)
 
                 if verbose:
@@ -741,7 +701,7 @@ class GenomeResources:
                         f"[bold blue]{'Extracted':>12}[/] [cyan]{coord.cluster_id}[/] ({len(subseq)} bp) for [bold cyan]{self.context.genome_id}[/]"
                     )
 
-            del contig_groups[seq_id]
+            del contig_groups[record.id]
 
             if not contig_groups:
                 break
@@ -961,11 +921,12 @@ class FastaGFFDataset(BaseDataset):
         progress: rich.progress.Progress,
         cluster_ids: typing.Container[str],
     ) -> typing.Dict[str, int]:
+
+        df = pl.read_csv(self.cluster_metadata, separator="\t")
+
         task = progress.add_task(
             f"[bold blue]{'Processing':>9}[/] protein sequences", total=len(df)
         )
-
-        df = pl.read_csv(self.cluster_metadata, separator="\t")
 
         for row in df.iter_rows(named=True):
             genome_id = row.get("genome_id") or f"genome_{0:07}"
@@ -987,8 +948,8 @@ class FastaGFFDataset(BaseDataset):
                 coordinates = resources.coordinates
                 if cluster_ids:
                     coordinates = [
-                        c 
-                        for c in coordinates 
+                        c
+                        for c in coordinates
                         if c.cluster_id in cluster_ids
                     ]
                 yield from resources.extract_proteins_from_coordinates(
