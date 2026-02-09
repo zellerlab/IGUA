@@ -13,9 +13,9 @@ Pipeline
 .. autosummary::
    :nosignatures:
 
-   ClusteringParameters
-   ClusteringPipeline
-   ClusteringResult
+   PipelineParameters
+   PipelineResult
+   Pipeline
 
 .. toctree::
    :caption: Pipeline
@@ -68,6 +68,8 @@ Base
 .. autosummary::
    :nosignatures:
 
+    Cluster
+    Protein
     BaseDataset
 
 
