@@ -172,7 +172,7 @@ pub fn manhattan<'py>(
     Err(PyTypeError::new_err("Unsupported dtype in `manhattan`"))
 }
 
-/// Compute pairwise Manhattan distances for a CSR sparse matrix.
+/// Compute Manhattan distances between a pair of observations in a CSR sparse matrix.
 #[pyfunction]
 #[pyo3(signature = (data, indices, indptr, weights, i, j))]
 pub fn manhattan_pair<'py>(

@@ -10,6 +10,8 @@ from .hca import linkage, manhattan, manhattan_pair
 
 
 class ClusteringStrategy(abc.ABC):
+    """An abstract clustering strategy to cluster compositional data.
+    """
 
     @abc.abstractmethod
     def cluster(
@@ -17,12 +19,25 @@ class ClusteringStrategy(abc.ABC):
         X: scipy.sparse.csr_matrix,
         weights: typing.Optional[numpy.ndarray] = None,
     ) -> numpy.ndarray:
-        """Cluster the given observations.
+        r"""Cluster the given observations.
+
+        Arguments:
+            X (`scipy.sparse.csr_matrix`): A matrix of shape :math:`m \times n`
+                with compositional data.
+            weights (`numpy.ndarray` or `None`): The weights (of shape
+                :math:`n`) to use for computing distances. If `None`,
+                use uniform weights.
+
+        Returns:
+            `numpy.ndarray`: A flat array of shape :math:`m` which assigns
+            an arbitrary cluster number to each observation of ``X``
+            (see `scipy.cluster.hierarchy.fcluster` documentation).
+
         """
 
 
 class HierarchicalClustering(ClusteringStrategy):
-    """A clustering method implemeting hierarchical clustering.
+    """A clustering strategy implementing hierarchical clustering.
     """
 
     def __init__(
@@ -33,6 +48,22 @@ class HierarchicalClustering(ClusteringStrategy):
         precision: Literal["half", "single", "double"] = "double",
         jobs: int = 1,
     ):
+        """Create a new hierarchical clustering strategy.
+
+        Arguments:
+            method (`str`): The name of the linkage method to use: *average*,
+                *single*, *complete*, *weighted*, *centroid*, *median* or
+                *ward*.
+            distance (`float`): The distance cutoff for the flat clusters
+                created with `scipy.cluster.hierarchy.fcluster`.
+            precision (`str`): The floating-point precision to use: *half*,
+                *single* or *double*. Note that changing precision (in
+                particular with half-precision) may lead to differences in
+                the generated clustering.
+            jobs (`int`): The number of parallel threads to use to perform
+                the pairwise distance computation.
+
+        """
         self.method = method
         self.distance = distance
         self.precision = precision
@@ -94,7 +125,7 @@ class HierarchicalClustering(ClusteringStrategy):
 
 
 class LinearClustering(ClusteringStrategy):
-    """A clustering method similar to MMseqs2 linear clustering.
+    """A clustering strategy similar to MMseqs2 linear clustering.
     """
 
     def __init__(
@@ -102,13 +133,20 @@ class LinearClustering(ClusteringStrategy):
         *,
         distance: float = 0.8,
     ):
+        """Create a new linear clustering strategy.
+
+        Arguments:
+            distance (`float`): The distance cutoff to use for clustering
+                observations together.
+
+        """
         self.distance = distance
 
     def cluster(
         self,
         X: scipy.sparse.csr_matrix,
         weights: typing.Optional[numpy.ndarray] = None,
-    ):
+    ) -> numpy.ndarray:
         # check matrix format
         if not isinstance(X, scipy.sparse.csr_matrix):
             raise TypeError(f"expected csr_matrix, got {type(X).__name__}")
@@ -125,7 +163,7 @@ class LinearClustering(ClusteringStrategy):
         X_csc = X.tocsc()
 
         # compute the total length of each observation
-        # (used to rescale the absolute distances to a relative range)
+        # (used to rescale the absolute distances to a relative [0, 1] range)
         r = X.shape[0]
         if weights is None:
             total = X.sum(axis=1, dtype=numpy.int32).A1
