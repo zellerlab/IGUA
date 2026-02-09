@@ -18,9 +18,6 @@ from rich.console import Console
 from .base import BaseDataset, Cluster, Protein
 
 
-_GZIP_MAGIC = b"\x1f\x8b"
-
-
 class TarCache:
     """Cache for extracted tar members to avoid repeated extraction."""
 
@@ -80,7 +77,9 @@ def _parse_tar_path(
 
 
 def smart_open(
-    path: pathlib.Path, mode: str = "rb", tar_cache: typing.Optional[TarCache] = None
+    path: pathlib.Path, 
+    mode: str = "rb", 
+    tar_cache: typing.Optional[TarCache] = None,
 ) -> typing.BinaryIO:
     """Open file, handling regular files and tar archives.
 
@@ -101,17 +100,9 @@ def smart_open(
         if tar_cache is None:
             tar_cache = TarCache()
         member_data = tar_cache.get_member(tar_path, member_path)
-        reader = io.BufferedReader(member_data)
-
-        if reader.peek().startswith(_GZIP_MAGIC):
-            reader = gzip.GzipFile(mode="rb", fileobj=reader)  # type: ignore
-
-        return reader  # type: ignore
+        return zopen(member_data)
     else:
-        reader = open(path, "rb")
-        if reader.peek().startswith(_GZIP_MAGIC):
-            reader = gzip.GzipFile(mode="rb", fileobj=reader)  # type: ignore
-        return reader  # type: ignore
+        return zopen(path)
 
 
 @dataclass
@@ -361,9 +352,7 @@ class ProteinIndex:
         if seq:
             return seq
 
-        opener = gzip.open if self.path.suffix == ".gz" else open
-
-        with opener(self.path, "rt") as f:
+        with io.TextIOWrapper(smart_open(self.path)) as f:
             seq_id = None
             sequence = []
             full_header = None
