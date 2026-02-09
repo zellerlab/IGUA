@@ -99,8 +99,8 @@ class BaseDataset(abc.ABC):
         Arguments:
             progress (`rich.progress.Progress`): A `Progress` instance
                 that can be used for tracking progress.
-            clusters (`collections.abc.Collection` of `str`): A collection
-                of cluster IDs from which to extract proteins.
+            cluster_ids (`collections.abc.Collection` of `str`): A 
+                collection of cluster IDs from which to extract proteins.
 
         Yields:
             `Protein`: A protein object for each protein of the gene 

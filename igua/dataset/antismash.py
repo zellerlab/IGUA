@@ -32,12 +32,12 @@ def _extract_clusters_from_record(
 
 def _extract_proteins_from_record(
     record: gb_io.Record,
-    clusters: typing.Container[str],
+    cluster_ids: typing.Container[str],
 ) -> typing.Iterable[Protein]:
     for region in filter(lambda feat: feat.kind == "region", record.features):
         number = next(q.value for q in region.qualifiers if q.key == "region_number")
         region_id = f"{record.name}.region{number:>03}"
-        if region_id not in clusters:
+        if region_id not in cluster_ids:
             continue
         for cds in filter(
             lambda feat: feat.kind == "CDS" and feat.location.start >= region.location.start and feat.location.end <= region.location.end,
@@ -92,14 +92,14 @@ class AntiSMASHGenBankDataset(BaseDataset):
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        clusters: typing.Container[str],
+        cluster_ids: typing.Container[str],
     ) -> typing.Iterable[Protein]:
         task = progress.add_task(f"[bold blue]{'Reading':>9}[/]")
         with io.BufferedReader(progress.open(self.path, "rb", task_id=task)) as reader:  # type: ignore
             if reader.peek()[:2] == b"\x1f\x8b":
                 reader = gzip.GzipFile(mode="rb", fileobj=reader)  # type: ignore
             for record in gb_io.iter(reader):
-                yield from _extract_proteins_from_record(record, clusters)
+                yield from _extract_proteins_from_record(record, cluster_ids)
         progress.remove_task(task)
 
 
@@ -149,7 +149,7 @@ class AntiSMASHZipDataset(BaseDataset):
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        clusters: typing.Container[str],
+        cluster_ids: typing.Container[str],
     ) -> typing.Iterable[Protein]:
         with zipfile.ZipFile(self.path, mode="r") as archive:
             files = { file.filename for file in archive.filelist }
@@ -161,5 +161,5 @@ class AntiSMASHZipDataset(BaseDataset):
                     record = next(records)
                     if next(records, None) is not None:
                         raise ValueError(f"more than one record found in {file.filename}")
-                    yield from _extract_proteins_from_record(record, clusters)
+                    yield from _extract_proteins_from_record(record, cluster_ids)
 

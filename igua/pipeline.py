@@ -4,7 +4,7 @@ import dataclasses
 import pathlib
 import tempfile
 import typing
-from typing import Dict, Literal, Mapping
+from typing import Dict, Literal, Mapping, Tuple
 
 import anndata
 import rich.console
@@ -196,10 +196,10 @@ class Pipeline:
         """Extract the dataset clusters to the given file.
 
         Arguments:
-            dataset (`~igua.dataset.BaseDataset`): The dataset containing
-                the gene clusters to extract.
+            dataset (`~igua.dataset.base.BaseDataset`): The dataset 
+                containing the gene clusters to extract.
             output (`pathlib.Path`): The path to the output file to
-                write gene clusters to.
+                write the gene clusters sequence to.
 
         Returns:
             `pandas.DataFrame`: A table with columns ``cluster_id`` and

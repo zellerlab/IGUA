@@ -23,8 +23,8 @@ class GenBankDataset(BaseDataset):
         This method treats each GenBank record as an independent gene
         cluster and extracts the full record sequence and all the
         annotated genes. For GenBank files obtained with antiSMASH,
-        please use the `AntiSMASHGenBankDataset` class to enable
-        additional processing of the regions.
+        please use the `~igua.dataset.antismash.AntiSMASHGenBankDataset` 
+        class to enable correct processing of the antiSMASH regions.
 
     """
 

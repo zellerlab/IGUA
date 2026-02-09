@@ -970,7 +970,7 @@ class FastaGFFDataset(BaseDataset):
     def extract_proteins(
         self,
         progress: rich.progress.Progress,
-        clusters: typing.Container[str],
+        cluster_ids: typing.Container[str],
     ) -> typing.Dict[str, int]:
         task = progress.add_task(
             f"[bold blue]{'Processing':>9}[/] protein sequences", total=len(df)
@@ -996,11 +996,11 @@ class FastaGFFDataset(BaseDataset):
 
             with GenomeResources(context, progress.console) as resources:
                 coordinates = resources.coordinates
-                if clusters:
+                if cluster_ids:
                     coordinates = [
                         c 
                         for c in coordinates 
-                        if c.cluster_id in clusters
+                        if c.cluster_id in cluster_ids
                     ]
                 yield from resources.extract_proteins_from_coordinates(
                     coordinates,
