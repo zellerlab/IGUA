@@ -50,7 +50,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="igua",
-        formatter_class=HelpFormatter,
+        # formatter_class=HelpFormatter,
         add_help=False,
         description=(
             "A method for content-agnostic high-throughput identification of "
@@ -349,10 +349,13 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         "--clustering-precision",
         help=extended_help_text("The numerical precision to use for computing distances for hierarchical clustering."),
         default=strategy.precision,
-        choices={"half", "single", "double"},
+        choices=["half", "single", "double"],
     )
 
     return parser
+
+def _build_parser_sphinx():
+    return build_parser(["igua", "--help-all"])
 
 
 def create_dataset(

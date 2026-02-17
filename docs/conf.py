@@ -16,9 +16,19 @@ import urllib.request
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+import igua
+
 project = 'IGUA'
-copyright = '2026, Martin Larralde'
 author = 'Martin Larralde'
+year = datetime.date.today().year
+copyright = '{}, {}'.format("2026" if year==2026 else "2026-{}".format(year), author)
+
+# avoid using rich_argparse as it emits ANSI control codes that conflict
+# with `sphinx-argparse` rendering of the usage
+import igua.cli
+import argparse
+import unittest.mock
+igua.cli.HelpFormatter = argparse.ArgumentDefaultsHelpFormatter
 
 # -- General configuration ---------------------------------------------------
 
@@ -34,6 +44,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.todo",
     "sphinx.ext.extlinks",
+    "sphinxarg.ext",
     "sphinx_design",
     "sphinxcontrib.jquery",
     "nbsphinx",
