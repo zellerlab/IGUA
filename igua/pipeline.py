@@ -1,5 +1,6 @@
 import abc
 import contextlib
+import copy
 import dataclasses
 import pathlib
 import tempfile
@@ -17,7 +18,7 @@ from .dataset.base import BaseDataset
 from .dataset.defensefinder import DefenseFinderDataset
 from .dataset.fasta_gff import FastaGFFDataset
 from .mmseqs import MMSeqs, Database, Clustering
-from .clustering import HierarchicalClustering, LinearClustering
+from .clustering import ClusteringStrategy, HierarchicalClustering, LinearClustering, default_strategy
 from ._utils import Stopwatch
 
 
@@ -84,10 +85,6 @@ class PipelineParameters:
     nuc1: Dict[str, object]
     nuc2: Dict[str, object]
     prot: Dict[str, object]
-    clustering_method: Literal["average", "single", "complete", "weighted", "centroid", "median", "ward", "linclust"]
-    clustering_distance: float
-    clustering_precision: Literal["half", "single", "double"]
-    clustering_weight: Literal["protein", None]
 
     @classmethod
     def default(cls) -> "PipelineParameters":
@@ -121,10 +118,6 @@ class PipelineParameters:
                 coverage_mode=1,
                 sequence_identity=0.5,
             ),
-            clustering_method="average",
-            clustering_distance=0.8,
-            clustering_precision="double",
-            clustering_weight="protein",
         )
 
 
@@ -154,10 +147,12 @@ class Pipeline:
 
     def __init__(
         self,
+        strategy: ClusteringStrategy = default_strategy(),
         params: typing.Optional[PipelineParameters] = None,
         *,
         prefix: str = "GCF",
         jobs: int = 1,
+        weight: Literal["protein", None] = "protein",
         mmseqs: typing.Optional[MMSeqs] = None,
         progress: typing.Optional[rich.progress.Progress] = None,
         workdir: typing.Optional[pathlib.Path] = None,
@@ -174,18 +169,18 @@ class Pipeline:
         else:
             self.console = progress.console
 
-        if self.params.clustering_method == "linclust":
-            self.clustering = LinearClustering(
-                distance=self.params.clustering_distance,
-            )
-        else:
-            self.clustering = HierarchicalClustering(
-                method=self.params.clustering_method,
-                distance=self.params.clustering_distance,
-                precision=self.params.clustering_precision,
-                jobs=self.jobs,
-            )
+        if weight is not None and weight != "protein":
+            raise ValueError(f"invalid weight: {weight!r}")
+        self.weight = weight
 
+        if strategy is None:
+            self.clustering_strategy = None
+        else:
+            if not isinstance(strategy, ClusteringStrategy):
+                raise TypeError(f"expected ClusteringStrategy, got {type(strategy).__name__}")
+            self.clustering_strategy = copy.deepcopy(strategy)
+            self.clustering_strategy.jobs = self.jobs
+        
     # ---
 
     def _extract_clusters_to_file(
@@ -527,20 +522,21 @@ class Pipeline:
             to a GCF with arbitrary identifiers.
 
         """
+        assert self.clustering_strategy is not None
         # use weights unless disabled
-        if self.params.clustering_weight == "protein":
+        if self.weight == "protein":
             weights = compositions.var["size"].values
-        elif self.params.clustering_weight is None:
+        elif self.weight is None:
             weights = None
         else:
-            raise ValueError(f"invalid clustering weight: {self.params.clustering_weight!r}")
+            raise ValueError(f"invalid clustering weight: {self.weight!r}")
         # run clustering based on protein array membership
         self.console.print(
             f"[bold blue]{'Clustering':>12}[/] gene clusters using "
-            f"{self.params.clustering_method} linkage"
+            f"{self.clustering_strategy.method} linkage"
         )
         with Stopwatch() as stopwatch:
-            flat = self.clustering.cluster(compositions.X, weights)
+            flat = self.clustering_strategy.cluster(compositions.X, weights)
             # build GCFs based on flat clustering
             gcfs3 = pandas.DataFrame(
                 {
@@ -646,18 +642,12 @@ class Pipeline:
     def run(
         self,
         dataset: BaseDataset,
-        *,
-        clustering: bool = True,
     ):
         """Run the clustering pipeline on the given dataset.
 
         Arguments:
             dataset (`~igua.dataset.base.BaseDataset`): A dataset containing
                 the gene clusters to cluster into families.
-            clustering (`bool`): Set to `False` to disable the protein
-                composition clustering (3rd step of the pipeline). If `False`,
-                the clustering pipeline mostly performs genomic-level
-                deduplication.
 
         Returns:
             `~igua.pipeline.PipelineResult`: The results of the pipeline.
@@ -688,7 +678,7 @@ class Pipeline:
             representatives = self._extract_representatives(gcfs2)
             # run protein clustering if enabled and if there are enough
             # gene clusters left
-            if clustering and len(representatives) > 1:
+            if self.clustering_strategy is not None and len(representatives) > 1:
                 compositions = self._run_protein_clustering(
                     workdir,
                     dataset,

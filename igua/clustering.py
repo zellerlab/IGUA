@@ -12,6 +12,7 @@ from .hca import linkage, manhattan, manhattan_pair
 class ClusteringStrategy(abc.ABC):
     """An abstract clustering strategy to cluster compositional data.
     """
+    method: str
 
     @abc.abstractmethod
     def cluster(
@@ -141,6 +142,7 @@ class LinearClustering(ClusteringStrategy):
 
         """
         self.distance = distance
+        self.method = "linclust"
 
     def cluster(
         self,
@@ -209,3 +211,11 @@ class LinearClustering(ClusteringStrategy):
             flat[list(subset)] = i
 
         return flat
+
+
+def default_strategy() -> ClusteringStrategy:
+    return HierarchicalClustering(
+        method="average",
+        distance=0.8,
+        precision="double",
+    )

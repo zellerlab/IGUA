@@ -32,6 +32,7 @@ from ..dataset.base import BaseDataset
 from ..dataset.list import DatasetList
 from ..mmseqs import MMSeqs, Database, Clustering
 from ..pipeline import PipelineParameters, Pipeline
+from ..clustering import default_strategy, ClusteringStrategy, LinearClustering, HierarchicalClustering
 from .._utils import Stopwatch
 from .inputs import (
     GenBankInput, 
@@ -44,6 +45,7 @@ from .inputs import (
 def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
     show_all = '--help-all' in argv
     params = PipelineParameters.default()
+    strategy = default_strategy()
 
     parser = argparse.ArgumentParser(
         prog="igua",
@@ -312,16 +314,10 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         "Clustering", "Parameters to control the hierarchical clustering."
     )
     group_clustering.add_argument(
-        "--no-clustering",
-        help=extended_help_text("Disable the protein-level clustering."),
-        action="store_false",
-        dest="clustering",
-    )
-    group_clustering.add_argument(
         "--clustering-method",
-        help=extended_help_text("The hierarchical method to use for protein-level clustering."),
-        default=params.clustering_method,
-        choices={
+        help=extended_help_text("The hierarchical clustering method to use for protein-level clustering."),
+        default=strategy.method,
+        choices=[
             "average",
             "single",
             "complete",
@@ -330,25 +326,20 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
             "median",
             "ward",
             "linclust",
-        },
+            "none",
+        ],
     )
     group_clustering.add_argument(
         "--clustering-distance",
         help=extended_help_text("The distance threshold after which to stop merging clusters."),
         type=float,
-        default=params.clustering_distance,
+        default=strategy.distance,
     )
     group_clustering.add_argument(
         "--clustering-precision",
         help=extended_help_text("The numerical precision to use for computing distances for hierarchical clustering."),
-        default=params.clustering_precision,
+        default=strategy.precision,
         choices={"half", "single", "double"},
-    )
-    group_clustering.add_argument(
-        "--no-clustering-weight",
-        help=extended_help_text("Disable weighting by protein length when computing distances for hierarchical clustering."),
-        action="store_false",
-        dest="clustering_weight",
     )
 
     return parser
@@ -399,11 +390,27 @@ def get_mmseqs_params(args: argparse.Namespace) -> PipelineParameters:
         nuc1=params_nuc1,
         nuc2=params_nuc2,
         prot=params_prot,
-        clustering_method=args.clustering_method,
-        clustering_distance=args.clustering_distance,
-        clustering_precision=args.clustering_precision,
-        clustering_weight="protein" if args.clustering_weight else None,
+        # clustering_method=args.clustering_method,
+        # clustering_distance=args.clustering_distance,
+        # clustering_precision=args.clustering_precision,
+        # clustering_weight="protein" if args.clustering_weight else None,
     )
+
+
+def get_clustering_strategy(args: argparse.Namespace) -> ClusteringStrategy:
+    if args.clustering_method == "none":
+        return None
+    elif args.clustering_method == "linclust":
+        return LinearClustering(
+            distance=args.clustering_distance,
+        )
+    else:
+        return HierarchicalClustering(
+            method=args.clustering_method,
+            distance=args.clustering_distance,
+            precision=args.clustering_precision,
+            jobs=args.jobs,
+        )
 
 
 def get_protein_representative(
@@ -446,6 +453,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
 
         # extract MMseqs parameters from command line
         params = get_mmseqs_params(args)
+        strategy = get_clustering_strategy(args)
 
         # use user provided workdir or create a new one in `tempfile`
         if args.workdir is None:
@@ -483,6 +491,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
 
         # create a pipeline with the configuration from the CLI
         pipeline = Pipeline(
+            strategy=strategy,
             params=params,
             mmseqs=mmseqs,
             workdir=workdir,
@@ -493,10 +502,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
         dataset = create_dataset(progress=progress, args=args)
 
         # run pipeline and retrieve GCFs
-        result = pipeline.run(
-            dataset,
-            clustering=args.clustering,
-        )
+        result = pipeline.run(dataset)
 
         # save GCFs
         result.gcfs.to_csv(args.output, sep="\t", index=False)
