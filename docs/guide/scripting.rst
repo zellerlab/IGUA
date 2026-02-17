@@ -1,9 +1,10 @@
 Scripting IGUA
 ==============
 
-To facilitate using IGUA on arbitrary datasets, IGUA since ``v0.2.0`` provides
-an API which can be used to easily pass various configurations to IGUA, 
-including complex or custom datasets.
+To facilitate using IGUA on arbitrary datasets, we since ``v0.2.0`` provide
+an API which can be used to configure and execute IGUA from a Python 
+script. The API supports arbitrary datasets, allowing users to provide
+data from arbitrary sources.
 
 
 Basic usage
@@ -26,6 +27,10 @@ gene clusters contained in a GenBank file:
         pipeline = Pipeline(jobs=8, progress=progress)
         results = pipeline.run(dataset)
         print(results.gcfs)
+
+``results`` is an `~igua.pipeline.PipelineResults` object which stores the 
+generated GCF table as a `pandas.DataFrame`, which can then be saved to a 
+file or processed further.
             
 
 Combining datasets
@@ -42,9 +47,8 @@ inputs.
 
 
 The `~igua.dataset.list.DatasetList` class can be used to combine several
-datasets inside a single dataset class. For instance, to combine gene 
-clusters from two different GenBank files, the following code can be 
-used:
+datasets inside a single `~igua.dataset.base.BaseDataset` class. 
+For instance, to combine gene clusters from two different GenBank files:
 
 .. code:: python
 
@@ -67,7 +71,7 @@ You can implement your own dataset!
 
 A `~igua.dataset.base.BaseDataset` needs to implement only two methods:
 
-- `~igua.dataset.base.BaseDataset.extract_clusters` to extract the gene 
+- `~igua.dataset.base.BaseDataset.extract_clusters` to extract the 
   genomic sequences of the gene clusters to process.
 - `~igua.dataset.base.BaseDataset.extract_proteins` to extract the protein
   sequences of the gene clusters to process.
@@ -104,8 +108,8 @@ Cluster extraction
 ^^^^^^^^^^^^^^^^^^
 
 Now we need to implement the ``extract_clusters`` method, which yields the 
-clusters to process with their genomic sequence. To do so, we can use Biopython 
-to stream records from the FASTA file, and use the clusters TSV
+clusters to process. To do so, we can use Biopython to stream records from the 
+FASTA file, and use the clusters TSV to extract the gene cluster sequences:
 
 .. code:: python
 
@@ -120,7 +124,7 @@ to stream records from the FASTA file, and use the clusters TSV
             for record in Bio.SeqIO.parse(self.genome_fna, "fasta"):
                 # extract the clusters predicted in this record and yield
                 # a Cluster object for each of them
-                record_clusters = self.clusters_tsv[self.clusters_tsv["sequence_id"] == record.id]
+                record_clusters = self.clusters[self.clusters["sequence_id"] == record.id]
                 for row in record_clusters.itertuples():
                     yield Cluster(
                         id=row.cluster_id,
@@ -129,9 +133,9 @@ to stream records from the FASTA file, and use the clusters TSV
                     )
 
 Note that we are not ensuring that all clusters have been extracted successfully, 
-which may be a desirable check to add to the code. You could use a dictionary
-to track which clusters in ``self.clusters_tsv['cluster_id']`` have been 
-found. 
+which may be a desirable check to add to the code if we were to use it in 
+production. We could use a dictionary to track which clusters in 
+``self.clusters['cluster_id']`` have been found. 
 
 Protein extraction
 ^^^^^^^^^^^^^^^^^^
@@ -155,14 +159,14 @@ of cluster IDs from which to extract proteins from.
         def extract_proteins(self, progress, clusters):
             # subset the clusters table with only the IDs of the clusters to
             # extract, which are the representatives of the previous stages
-            clusters_to_extract = self.clusters_tsv[self.clusters_tsv["cluster_id"].str.isin(clusters)]
+            clusters_to_extract = self.clusters[self.clusters["cluster_id"].isin(clusters)]
             for record in Bio.SeqIO.parse(self.genome_fna, "fasta"):
                 # extract the clusters predicted in this record and extract
                 # the genes corresponding to this cluster
                 record_clusters = clusters_to_extract[clusters_to_extract["sequence_id"] == record.id]
                 for cluster_row in record_clusters.itertuples():
                     cluster_gene_ids = cluster_row.proteins.split(";")
-                    cluster_genes = self.genes_tsv[self.genes_tsv["protein_id"].str.isin(cluster_genes_ids)]
+                    cluster_genes = self.genes[self.genes["protein_id"].isin(cluster_genes_ids)]
                     # yield a protein for every gene, using Biopython to 
                     # translate the genomic sequence to get the protein
                     for gene_row in cluster_genes.itertuples():
@@ -176,7 +180,7 @@ of cluster IDs from which to extract proteins from.
 
 With this method implemented, we have a working dataset which can load data 
 described by a GECCO table. It's not the best in terms of performance 
-(we could for instance index ``self.genes`` by ``protein_id`` to accelerate
+(we should rather index ``self.genes`` by ``protein_id`` to accelerate
 the retrieval of table rows), but should be enough to get us started!
 
 Using the dataset
