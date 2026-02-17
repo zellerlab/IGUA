@@ -30,7 +30,7 @@ From: alpine:3.21.3
 
 %labels
     Author martin.larralde@embl.de
-    Version v0.1.0
+    Version v0.2.0
 
 %help
     This is a basic container wrapping IGUA and MMseqs2 for convenience.

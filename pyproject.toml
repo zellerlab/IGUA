@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "igua"
-version = "0.2.0-dev.1"
+version = "0.2.0"
 description = "Iterative Gene clUster Analysis, a high-throughput method for gene cluster family identification."
 readme = 'README.md'
 requires-python = ">=3.8"
@@ -47,9 +47,9 @@ dependencies = [
 "Homepage" = "https://github.com/zellerlab/IGUA/"
 "Bug Tracker" = "https://github.com/zellerlab/IGUA/issues"
 "Changelog" = "https://github.com/zellerlab/IGUA/blob/master/CHANGELOG.md"
-# "Coverage" = "https://codecov.io/gh/zellerlab/IGUA/"
 "Builds" = "https://github.com/zellerlab/IGUA/actions/"
 "PyPI" = "https://pypi.org/project/IGUA"
+"Preprint" = "https://www.biorxiv.org/content/10.1101/2025.05.15.654203v1"
 
 [project.scripts]
 igua = "igua.cli:main"
@@ -63,7 +63,7 @@ module-name = "igua.hca"
 [tool.cibuildwheel]
 skip = ["*-musllinux_i686"]
 before-build = "pip install maturin"
-#test-command = "python -m unittest tests -v"
+#test-command = "cd {project} && python -m unittest discover -v"
 build-verbosity = 1
 free-threaded-support = false
 
