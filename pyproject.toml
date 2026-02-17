@@ -7,7 +7,7 @@ name = "igua"
 version = "0.2.0-dev.1"
 description = "Iterative Gene clUster Analysis, a high-throughput method for gene cluster family identification."
 readme = 'README.md'
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = { file = "COPYING" }
 authors = [
   { name = "Martin Larralde", email = "martin.larralde@embl.de" },
@@ -20,13 +20,13 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: OS Independent",
     "Programming Language :: Rust",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
