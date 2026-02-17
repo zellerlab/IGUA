@@ -32,7 +32,7 @@ class TestManhattan(unittest.TestCase):
             X *= (rng.random(size=X.shape) < 0.2)
             S = scipy.sparse.csr_matrix(X)
             # generate random weights
-            weights = rng.integers(1, 10, X.shape[1], dtype="int64")
+            weights = rng.integers(1, 10, X.shape[1], dtype="int32")
             # compute expected pdist with scipy
             d_exp = scipy.spatial.distance.pdist(X, metric="cityblock", w=weights)
             # compute result with custom sparse implementation
