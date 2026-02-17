@@ -45,6 +45,25 @@ Clustering Strategy
    Clustering <clustering>
 
 
+MMSeqs Driver
+-------------
+
+.. currentmodule:: igua.mmseqs
+
+.. autosummary::
+   :nosignatures:
+
+   MMSeqs
+
+.. toctree::
+   :caption: MMSeqs Driver
+   :maxdepth: 1
+   :hidden:
+
+   MMSeqs <mmseqs>
+
+
+
 Datasets
 --------
 
