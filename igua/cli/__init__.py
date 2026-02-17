@@ -27,16 +27,16 @@ try:
 except ImportError:
     from argparse import HelpFormatter
 
-from . import __version__
-from .dataset.base import BaseDataset
-from .dataset.antismash import AntiSMASHGenBankDataset, AntiSMASHZipDataset
-from .dataset.genbank import GenBankDataset
-from .dataset.fasta_gff import FastaGFFDataset
-from .dataset.defensefinder import DefenseFinderDataset
-from .dataset.list import DatasetList
-from .mmseqs import MMSeqs, Database, Clustering
-from .pipeline import PipelineParameters, Pipeline
-from ._utils import Stopwatch
+from .. import __version__
+from ..dataset.base import BaseDataset
+from ..dataset.antismash import AntiSMASHGenBankDataset, AntiSMASHZipDataset
+from ..dataset.genbank import GenBankDataset
+from ..dataset.fasta_gff import FastaGFFDataset
+from ..dataset.defensefinder import DefenseFinderDataset
+from ..dataset.list import DatasetList
+from ..mmseqs import MMSeqs, Database, Clustering
+from ..pipeline import PipelineParameters, Pipeline
+from .._utils import Stopwatch
 
 
 class GenBankFile(typing.NamedTuple):
