@@ -19,7 +19,7 @@ the console:
 
 .. code:: console
 
-    $ igua -i clusters.gbk -o gcfs.tsv
+    $ igua --gbk clusters.gbk -o gcfs.tsv
 
 .. caution::
 
@@ -34,14 +34,14 @@ records from different files if given more than one input:
 
 .. code:: console
 
-    $ igua -i clusters1.gbk -i clusters2.gbk ...
+    $ igua --gbk clusters1.gbk --gbk clusters2.gbk ...
 
 .. caution::
 
     Beware of the order of the clusters! Because of the heuristics used in 
     MMSeqs2, the order of the gene clusters in the inputs actually influences
-    the GCFs returned by IGUA. You may get different GCFs for the same gene
-    clusters ordered differently! Make sure the gene clusters are always 
+    the GCFs returned by IGUA. You may get slightly different GCFs for the same 
+    gene clusters ordered differently. Make sure the gene clusters are always 
     given in a consistent order to avoid non-deterministic results.
 
 
@@ -145,4 +145,17 @@ float point numbers instead of the ``double`` precision used by default. Use the
 half-precision may lead to very degraded accuracy of the clustering*.
 
 
+Input types
+-----------
+
+AntiSMASH
+^^^^^^^^^
+
+IGUA supports antiSMASH clusters either inside a GenBank file or in 
+a Zip archive, using the ``--antismash-gbk`` and ``--antismash-zip``
+input flags respectively:
+
+.. code:: console
+
+    $ igua --antismash-gbk regions.gbk --antismash-zip regions.zip ...
 
