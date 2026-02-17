@@ -82,7 +82,7 @@ used for compositional representation of gene clusters, and can be used to
 transfer annotations to the GCF representatives. The final compositional matrix
 for each GCF representative, which can be useful for computing distances
 between GCFs, can be saved as an `anndata` HDF5 matrix to a filename given
-with the `--compositions` flag.
+with the ``--compositions`` flag.
 
 
 Resource management
@@ -90,7 +90,7 @@ Resource management
 
 MMseqs needs a fast scratch space to work with intermediate files while running
 linear clustering. By default, this will use a temporary folder obtained with
-``tempfile.TemporaryDirectory``, which typically lies inside ``/tmp``. To use a
+`tempfile.TemporaryDirectory`, which typically lies inside ``/tmp``. To use a
 different folder, use the ``--workdir`` flag.
 
 The temporary folder will at some point of the run contain a local copy of
