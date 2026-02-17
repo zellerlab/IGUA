@@ -474,7 +474,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
         else:
             tempdir = pathlib.Path(args.workdir)
             tempdir.mkdir(parents=True, exist_ok=True)
-            tempdir = tempfile.TemporaryDirectory(prefix="igua-", dir=workdir)
+            tempdir = tempfile.TemporaryDirectory(prefix="igua-", dir=args.workdir)
 
         # validate individual file arguments
         if not args.inputs:
