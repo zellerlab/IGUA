@@ -130,17 +130,18 @@ COMMANDS = {
   "countkmer",
 }
 
+
 class MMSeqs(object):
     """A wrapper around an ``mmseqs`` binary and common parameters.
     """
 
     def __init__(
-        self, 
-        binary="mmseqs", 
-        progress=None, 
-        threads=None,
-        tempdir=None,
-    ):
+        self,
+        binary: str = "mmseqs",
+        progress: typing.Optional[rich.progress.Progress] = None,
+        threads: typing.Optional[int] = None,
+        tempdir: typing.Optional[str] = None,
+    ) -> None:
         self.binary = binary
         self.progress = progress
         self.threads = threads
@@ -222,27 +223,33 @@ class MMSeqs(object):
             stdout, stderr = process.communicate()
             return stdout.decode().strip()
         except OSError as err:
-            raise RuntimeError(f"Failed to find MMseqs2 binary {self.binary!r}") from err
+            raise RuntimeError(f"Failed to find MMSeqs2 binary {self.binary!r}") from err
 
 
 class DatabaseType(enum.IntEnum):
     Protein = 1
-    Nucleotides = 2
+    Nucleotide = 2
 
 
 class _MMSeqsFile(object):
 
-    def __init__(self, mmseqs: MMSeqs):
+    def __init__(self, mmseqs: MMSeqs, path: pathlib.Path):
         self.mmseqs = mmseqs
+        self.path = path
+
+    def remove(self):
+        """Remove the MMSeqs2 file.
+        """
+        self.mmseqs.run("rmdb", self.path)
 
 
 class Database(_MMSeqsFile):
 
     @classmethod
     def create(
-        cls, 
-        mmseqs: MMSeqs, 
-        sequences: pathlib.Path, 
+        cls,
+        mmseqs: MMSeqs,
+        sequences: pathlib.Path,
         path: typing.Optional[pathlib.Path] = None,
     ) -> "Database":
         """Create a new database using a FASTA-formatted sequence file.
@@ -264,8 +271,7 @@ class Database(_MMSeqsFile):
     def __init__(self, mmseqs: MMSeqs, path: pathlib.Path):
         """Open a database at the given location.
         """
-        super().__init__(mmseqs)
-        self.path = path
+        super().__init__(mmseqs, path)
 
     def to_fasta(self, path: pathlib.Path) -> pathlib.Path:
         """Convert the sequence database to a two-line FASTA file.
@@ -274,7 +280,7 @@ class Database(_MMSeqsFile):
         return path
 
     def cluster(
-        self, 
+        self,
         output: pathlib.Path,
         *,
         e_value=0.001,
@@ -306,19 +312,22 @@ class Database(_MMSeqsFile):
 class Clustering(_MMSeqsFile):
 
     def __init__(
-        self, 
+        self,
         mmseqs: MMSeqs,
-        path: pathlib.Path, 
+        path: pathlib.Path,
         database: Database
     ):
-        super().__init__(mmseqs)
-        self.path = path
+        super().__init__(mmseqs, path)
         self.database = database
 
     def to_dataframe(self, columns: typing.Tuple[str, str]) -> pandas.DataFrame:
         """Obtain the clustering results as a table.
         """
-        with tempfile.NamedTemporaryFile("w", suffix=".tsv") as tmp:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            suffix=".tsv",
+            dir=self.mmseqs.tempdir
+        ) as tmp:
             self.mmseqs.run(
                 "createtsv",
                 self.database.path,
