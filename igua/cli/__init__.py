@@ -29,46 +29,16 @@ except ImportError:
 
 from .. import __version__
 from ..dataset.base import BaseDataset
-from ..dataset.antismash import AntiSMASHGenBankDataset, AntiSMASHZipDataset
-from ..dataset.genbank import GenBankDataset
-from ..dataset.fasta_gff import FastaGFFDataset
-from ..dataset.defensefinder import DefenseFinderDataset
 from ..dataset.list import DatasetList
 from ..mmseqs import MMSeqs, Database, Clustering
 from ..pipeline import PipelineParameters, Pipeline
 from .._utils import Stopwatch
-
-
-class GenBankFile(typing.NamedTuple):
-    filename: str
-
-    def to_dataset(self, args: argparse.Namespace) -> BaseDataset:
-        return GenBankDataset(pathlib.Path(self.filename))
-
-
-class GenBankListFile(typing.NamedTuple):
-    filename: str
-
-    def to_dataset(self, args: argparse.Namespace) -> BaseDataset:
-        datasets = []
-        with open(self.filename) as files:
-            for file in files:
-                datasets.append(GenBankDataset(pathlib.Path(file.strip())))
-        return DatasetList(datasets)
-
-
-class AntiSMASHGenBankFile(typing.NamedTuple):
-    filename: str
-
-    def to_dataset(self, args: argparse.Namespace) -> BaseDataset:
-        return AntiSMASHGenBankDataset(pathlib.Path(self.filename))
-
-
-class AntiSMASHZipFile(typing.NamedTuple):
-    filename: str
-
-    def to_dataset(self, args: argparse.Namespace) -> BaseDataset:
-        return AntiSMASHZipDataset(pathlib.Path(self.filename))
+from .inputs import (
+    GenBankInput, 
+    GenBankListInput, 
+    AntiSMASHGenBankInput, 
+    AntiSMASHZipInput,
+)
 
 
 def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
@@ -135,7 +105,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         metavar="FILE",
         dest="inputs",
         action="append",
-        type=GenBankFile,
+        type=GenBankInput,
         default=[],
     )
     group_input.add_argument(
@@ -145,7 +115,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         metavar="FILE",
         dest="inputs",
         action="append",
-        type=GenBankListFile,
+        type=GenBankListInput,
         default=[],
     )
     group_input.add_argument(
@@ -154,7 +124,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         metavar="FILE",
         dest="inputs",
         action="append",
-        type=AntiSMASHGenBankFile,
+        type=AntiSMASHGenBankInput,
         default=[],
     )
     group_input.add_argument(
@@ -163,7 +133,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         metavar="FILE",
         dest="inputs",
         action="append",
-        type=AntiSMASHZipFile,
+        type=AntiSMASHZipInput,
         default=[],
     )
 
