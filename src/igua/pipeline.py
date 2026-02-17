@@ -68,18 +68,6 @@ class PipelineParameters:
             stage 2 (nucleotide clustering).
         prot (`dict`): A dictionary of parameters to pass to MMseqs2 for the
             stage 3 (protein clustering).
-        clustering_method (`str`): The name of the clustering method to
-            use on the stage 3, either one of the supported hierarchical
-            clustering mode, or ``linclust`` to use MMseqs2-derived linear
-            clustering.
-        clustering_distance (`float`): The distance cutoff to use for
-            cluster creation in stage 3.
-        clustering_precision (`str`): The precision to use to perform
-            hierarchical clustering: one of *half*, *single*, or *double*.
-        clustering_weight (`str`): The weights to use for computing pairwise
-            distances during stage 3: either *protein* to weigh each
-            dimension by the length of the protein it represents, or `None`
-            to use uniform weights.
 
     """
     nuc1: Dict[str, object]
