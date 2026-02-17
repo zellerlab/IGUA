@@ -3,7 +3,7 @@ import datetime
 import io
 import pathlib
 import time
-from typing import BinaryIO, Iterator
+from typing import BinaryIO, Iterator, Union
 
 try:
     from isal import igzip as gzip
