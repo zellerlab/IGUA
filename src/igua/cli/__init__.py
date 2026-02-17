@@ -50,7 +50,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="igua",
-        # formatter_class=HelpFormatter,
+        formatter_class=HelpFormatter,
         add_help=False,
         description=(
             "A method for content-agnostic high-throughput identification of "
