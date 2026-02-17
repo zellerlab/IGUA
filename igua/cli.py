@@ -29,6 +29,7 @@ except ImportError:
 
 from . import __version__
 from .dataset.base import BaseDataset
+from .dataset.antismash import AntiSMASHGenBankDataset, AntiSMASHZipDataset
 from .dataset.genbank import GenBankDataset
 from .dataset.fasta_gff import FastaGFFDataset
 from .dataset.defensefinder import DefenseFinderDataset
@@ -36,6 +37,27 @@ from .dataset.list import DatasetList
 from .mmseqs import MMSeqs, Database, Clustering
 from .pipeline import PipelineParameters, Pipeline
 from ._utils import Stopwatch
+
+
+class GenBankFile(typing.NamedTuple):
+    filename: str
+
+    def to_dataset(self, args: argparse.Namespace):
+        return GenBankDataset(pathlib.Path(self.filename))
+
+
+class AntiSMASHGenBankFile(typing.NamedTuple):
+    filename: str
+
+    def to_dataset(self, args: argparse.Namespace):
+        return AntiSMASHGenBankDataset(pathlib.Path(self.filename))
+
+
+class AntiSMASHZipFile(typing.NamedTuple):
+    filename: str
+
+    def to_dataset(self, args: argparse.Namespace):
+        return AntiSMASHZipDataset(pathlib.Path(self.filename))
 
 
 def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
@@ -96,19 +118,32 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         "Mandatory input files required by the pipeline."
     )
     group_input.add_argument(
-        "-i",
-        "--input",
-        help="Input files or metadata TSV containing file paths.",
+        "-g",
+        "--gbk",
+        help="Input path to GenBank files containing generic gene clusters.",
+        metavar="FILE",
+        dest="inputs",
         action="append",
-        type=pathlib.Path,
+        type=GenBankFile,
         default=[],
-        required=True,
     )
     group_input.add_argument(
-        "--dataset-type",
-        help="Dataset type: 'genbank' for GenBank files, 'manual' for generic cluster TSV, 'defense-finder' for DefenseFinder output.",
-        choices=["genbank", "manual", "defense-finder"],
-        default=None,
+        "--antismash-gbk",
+        help="Input path to GenBank files containing antiSMASH predictions.",
+        metavar="FILE",
+        dest="inputs",
+        action="append",
+        type=AntiSMASHGenBankFile,
+        default=[],
+    )
+    group_input.add_argument(
+        "--antismash-zip",
+        help="Input path to Zip files containing antiSMASH predictions.",
+        metavar="FILE",
+        dest="inputs",
+        action="append",
+        type=AntiSMASHZipFile,
+        default=[],
     )
 
     group_output = parser.add_argument_group(
@@ -325,48 +360,6 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         dest="clustering_weight",
     )
 
-    group_dataset = extended_parser_group(
-        "Dataset Configuration",
-        "Configuration for dataset-specific options.",
-    )
-    group_dataset.add_argument(
-        "--activity",
-        help=extended_help_text("Filter by defense system activity (defense-finder only): 'all' (default), 'defense', 'antidefense'"),
-        default="all",
-        choices={"defense", "antidefense", "all"},
-    )
-    group_dataset.add_argument(
-        "--column-mapping",
-        help=extended_help_text("JSON file mapping column names for manual format (e.g., '{\"cluster_id\":\"sys_id\",...}')"),
-        type=pathlib.Path,
-    )
-    group_dataset.add_argument(
-        "--verbose",
-        help=extended_help_text("Detailed output for extracted cluster sequences"),
-        action="store_true",
-        default=False,
-    )
-    group_dataset.add_argument(
-        "--cluster-tsv",
-        help=extended_help_text("Path to clusters TSV file (requires --gff-file, --genome-fasta, --protein-fasta)"),
-        type=pathlib.Path,
-    )
-    group_dataset.add_argument(
-        "--gff-file",
-        help=extended_help_text("Path to GFF annotation file"),
-        type=pathlib.Path,
-    )
-    group_dataset.add_argument(
-        "--genome-fasta",
-        help=extended_help_text("Path to genome FASTA file"),
-        type=pathlib.Path,
-    )
-    group_dataset.add_argument(
-        "--protein-fasta",
-        help=extended_help_text("Path to protein FASTA file (.faa)"),
-        type=pathlib.Path,
-    )
-
     return parser
 
 
@@ -374,44 +367,13 @@ def create_dataset(
     progress: rich.progress.Progress,
     args: argparse.Namespace,
 ) -> BaseDataset:
-    """Create dataset handler with appropriate adapter."""
-
-    dataset_type = args.dataset_type
-
-    if dataset_type is None:
-        if args.input:
-            first_file = args.input[0]
-            if first_file.suffix.lower() in {".gb", ".gbk", ".genbank"}:
-                dataset_type = "genbank"
-            elif first_file.suffix.lower() == ".tsv":
-                dataset_type = "manual"
-        else:
-            dataset_type = "unspecified"
-
-    if dataset_type == "genbank":
-        progress.console.print(
-            f"[bold blue]{'Dataset':>12}[/] [magenta]GenBank[/] format"
-        )
-        return DatasetList(GenBankDataset(path) for path in args.input)
-
-    elif dataset_type == "manual":
-        progress.console.print(
-            f"[bold blue]{'Dataset':>12}[/] [magenta]Manual[/] gene cluster format"
-        )
-        column_mapping = None
-        if args.column_mapping:
-            with open(args.column_mapping) as f:
-                column_mapping = json.load(f)
-        return FastaGFFDataset(args.input, column_mapping=column_mapping)
-
-    elif dataset_type == "defense-finder":
-        progress.console.print(
-            f"[bold blue]{'Dataset':>12}[/] [magenta]DefenseFinder[/] format"
-        )
-        return DefenseFinderDataset(args.input, activity_filter=args.activity)
-
-    else:
-        raise ValueError(f"Unknown dataset type: {dataset_type}")
+    """Create dataset handler with appropriate adapter.
+    """
+    datasets = []
+    for input_ in args.inputs:
+        dataset = input_.to_dataset(args)
+        datasets.append(dataset)
+    return DatasetList(datasets)
 
 
 def get_mmseqs_params(args: argparse.Namespace) -> PipelineParameters:
@@ -503,30 +465,8 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
             tempdir = tempfile.TemporaryDirectory(prefix="igua-", dir=workdir)
 
         # validate individual file arguments
-        individual_args = [args.cluster_tsv, args.gff_file, args.genome_fasta, args.protein_fasta]
-        using_individual_files = any(individual_args)
-        if using_individual_files:
-            if not all(individual_args):
-                parser.error(
-                    "Individual file mode requires ALL of: "
-                    "--cluster-tsv, --gff-file, --genome-fasta, --protein-fasta"
-                )
-
-            if not args.input:
-                input_dict_df = {
-                    "genome_id": [os.path.basename(args.genome_fasta).split(".")[0]],
-                    "cluster_tsv": [str(args.cluster_tsv)],
-                    "gff_file": [str(args.gff_file)],
-                    "genome_fasta_file": [str(args.genome_fasta)],
-                    "protein_fasta_file": [str(args.protein_fasta)],
-                }
-
-                input_df = pandas.DataFrame(input_dict_df)
-                temp_tsv = workdir / "metadata.tsv"
-                input_df.to_csv(temp_tsv, sep="\t", index=False)
-                args.input = [temp_tsv]
-        elif not args.input:
-            parser.error("Input files (-i/--input) are required")
+        if not args.inputs:
+            parser.error("No input files given.")
 
         # acquire temporary folder
         workdir = pathlib.Path(ctx.enter_context(tempdir))
