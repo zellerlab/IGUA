@@ -58,7 +58,7 @@ igua = "igua.cli:main"
 [tool.maturin]
 manifest-path = "Cargo.toml"
 features = ["extension-module"]
-python-source = "."
+python-source = "src"
 module-name = "igua.hca"
 
 [tool.cibuildwheel]

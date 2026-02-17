@@ -6,7 +6,7 @@ publish = false
 [lib]
 crate-type = ["cdylib", "rlib"]
 name = "hca"
-path = "igua/hca/lib.rs"
+path = "src/igua/hca/lib.rs"
 
 [dependencies.pyo3]
 version = "0.27"

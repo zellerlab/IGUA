@@ -41,7 +41,7 @@ jobs:
     - name: Update CI requirements
       run: python -m pip install -U -r .github/workflows/requirements.txt
     - name: Build and install package
-      run: python -m pip install . -vv
+      run: python -m pip install -e . -vv
     - name: Download MMseqs2
       run: sh ./misc/download-mmseqs.sh /usr/local/bin
     - name: Run unit tests
@@ -86,7 +86,7 @@ jobs:
     - name: Update CI requirements
       run: python -m pip install -U -r .github/workflows/requirements.txt
     - name: Build and install package
-      run: python -m pip install . -vv
+      run: python -m pip install -e . -vv
     - name: Download MMseqs2
       run: sh ./misc/download-mmseqs.sh /usr/local/bin
     - name: Run unit tests
