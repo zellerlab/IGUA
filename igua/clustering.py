@@ -106,7 +106,7 @@ class HierarchicalClustering(ClusteringStrategy):
         n = 0
         for i in range(r - 1):
             l = r - (i + 1)
-            maxdist = numpy.clip(total[i + 1 :] + total[i], min=1)
+            maxdist = numpy.clip(total[i + 1 :] + total[i], 1, numpy.inf)
             distance_vector[n : n + l] /= maxdist
             n += l
         # enforce distances to be in [0, 1] (slight possibility of >1 due
@@ -198,7 +198,7 @@ class LinearClustering(ClusteringStrategy):
             #       other query efficiently in a single call?
             for query in indices:
                 d = manhattan_pair(X.data, X.indices, X.indptr, weights, query, centroid)
-                d /= numpy.clip(total[query] + total[centroid], min=1.0)
+                d /= numpy.clip(total[query] + total[centroid], 1.0, numpy.inf)
                 if d <= self.distance:
                     ds.merge(query, centroid)
 
