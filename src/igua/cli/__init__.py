@@ -351,6 +351,12 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         default=strategy.precision,
         choices=["half", "single", "double"],
     )
+    group_clustering.add_argument(
+        "--clustering-weight",
+        help=extended_help_text("The method to use to weigh dimensions in the distance matrix for hierarchical clustering."),
+        default="protein",
+        choices=["protein", "none"],
+    )
 
     return parser
 
@@ -403,10 +409,6 @@ def get_mmseqs_params(args: argparse.Namespace) -> PipelineParameters:
         nuc1=params_nuc1,
         nuc2=params_nuc2,
         prot=params_prot,
-        # clustering_method=args.clustering_method,
-        # clustering_distance=args.clustering_distance,
-        # clustering_precision=args.clustering_precision,
-        # clustering_weight="protein" if args.clustering_weight else None,
     )
 
 
@@ -509,6 +511,7 @@ def main(argv: typing.Optional[typing.List[str]] = None) -> int:
             mmseqs=mmseqs,
             workdir=workdir,
             progress=progress,
+            weight=None if args.clustering_weight == "none" else args.clustering_weight,
         )
 
         # create appropriate dataset handler
