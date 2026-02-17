@@ -42,21 +42,32 @@ from ._utils import Stopwatch
 class GenBankFile(typing.NamedTuple):
     filename: str
 
-    def to_dataset(self, args: argparse.Namespace):
+    def to_dataset(self, args: argparse.Namespace) -> BaseDataset:
         return GenBankDataset(pathlib.Path(self.filename))
+
+
+class GenBankListFile(typing.NamedTuple):
+    filename: str
+
+    def to_dataset(self, args: argparse.Namespace) -> BaseDataset:
+        datasets = []
+        with open(self.filename) as files:
+            for file in files:
+                datasets.append(GenBankDataset(pathlib.Path(file.strip())))
+        return DatasetList(datasets)
 
 
 class AntiSMASHGenBankFile(typing.NamedTuple):
     filename: str
 
-    def to_dataset(self, args: argparse.Namespace):
+    def to_dataset(self, args: argparse.Namespace) -> BaseDataset:
         return AntiSMASHGenBankDataset(pathlib.Path(self.filename))
 
 
 class AntiSMASHZipFile(typing.NamedTuple):
     filename: str
 
-    def to_dataset(self, args: argparse.Namespace):
+    def to_dataset(self, args: argparse.Namespace) -> BaseDataset:
         return AntiSMASHZipDataset(pathlib.Path(self.filename))
 
 
@@ -125,6 +136,16 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         dest="inputs",
         action="append",
         type=GenBankFile,
+        default=[],
+    )
+    group_input.add_argument(
+        "-l",
+        "--gbk-list",
+        help="Path to a file containing a list of GenBank files to process.",
+        metavar="FILE",
+        dest="inputs",
+        action="append",
+        type=GenBankListFile,
         default=[],
     )
     group_input.add_argument(
