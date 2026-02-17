@@ -1,9 +1,9 @@
 Running IGUA
 ============
 
-IGUA is a method for clustering gene clusters. It assumes that you have 
+IGUA is a method for clustering gene clusters. It assumes that you have
 both the genomic sequences for each gene cluster, as well as gene calling
-annotations with the translation of each protein. 
+annotations with the translation of each protein.
 
 Basic usage (GenBank input)
 ---------------------------
@@ -13,8 +13,8 @@ format. In GenBank inputs, each complete record is taken as a gene cluster,
 and protein sequences are extracted from the ``/translation`` qualifiers
 of ``CDS`` features.
 
-To run IGUA on a GenBank file named ``clusters.gbk`` and output the 
-resulting gene cluster families in a table named ``gcfs.tsv``, run in 
+To run IGUA on a GenBank file named ``clusters.gbk`` and output the
+resulting gene cluster families in a table named ``gcfs.tsv``, run in
 the console:
 
 .. code:: console
@@ -23,10 +23,10 @@ the console:
 
 .. caution::
 
-    The GenBank locus identifier will be used as the name of each gene cluster. 
-    This may cause problems with gene clusters obtained with some tools, 
-    such as antiSMASH. If the input contains duplicate identifiers, the first 
-    gene cluster with a given identifier will be used, and a warning will 
+    The GenBank locus identifier will be used as the name of each gene cluster.
+    This may cause problems with gene clusters obtained with some tools,
+    such as antiSMASH. If the input contains duplicate identifiers, the first
+    gene cluster with a given identifier will be used, and a warning will
     be displayed.
 
 IGUA can take more than one input file, and will just concatenate
@@ -38,21 +38,21 @@ records from different files if given more than one input:
 
 .. caution::
 
-    Beware of the order of the clusters! Because of the heuristics used in 
+    Beware of the order of the clusters! Because of the heuristics used in
     MMSeqs2, the order of the gene clusters in the inputs actually influences
-    the GCFs returned by IGUA. You may get slightly different GCFs for the same 
-    gene clusters ordered differently. Make sure the gene clusters are always 
+    the GCFs returned by IGUA. You may get slightly different GCFs for the same
+    gene clusters ordered differently. Make sure the gene clusters are always
     given in a consistent order to avoid non-deterministic results.
 
 
 Understanding the output
 ------------------------
 
-The main output of IGUA is a TSV file which assigns a Gene Cluster Family to 
+The main output of IGUA is a TSV file which assigns a Gene Cluster Family to
 each gene cluster found in the input. The GCF identifiers are arbitrary, and
 the prefix can be changed with the ``--prefix`` flag. The table also records
 the original file from which each record was obtained to facilitate resource
-management. The table is written to the filename given with the ``--output`` 
+management. The table is written to the filename given with the ``--output``
 flag. The output table contains the following columns:
 
 ``cluster_id``
@@ -72,16 +72,16 @@ flag. The output table contains the following columns:
 
 ``filename``
     The filename this gene cluster originates from. This can be useful to trace
-    the source of a gene cluster which may have been obtained from different 
+    the source of a gene cluster which may have been obtained from different
     input files.
 
 
-The sequences of the representative proteins extracted from each cluster 
+The sequences of the representative proteins extracted from each cluster
 can be saved to a FASTA file with the ``--features`` flag. These proteins are
 used for compositional representation of gene clusters, and can be used to
-transfer annotations to the GCF representatives. The final compositional matrix 
-for each GCF representative, which can be useful for computing distances 
-between GCFs, can be saved as an `anndata` HDF5 matrix to a filename given 
+transfer annotations to the GCF representatives. The final compositional matrix
+for each GCF representative, which can be useful for computing distances
+between GCFs, can be saved as an `anndata` HDF5 matrix to a filename given
 with the `--compositions` flag.
 
 
@@ -90,13 +90,13 @@ Resource management
 
 MMseqs needs a fast scratch space to work with intermediate files while running
 linear clustering. By default, this will use a temporary folder obtained with
-``tempfile.TemporaryDirectory``, which typically lies inside ``/tmp``. To use a 
-different folder, use the ``--workdir`` flag. 
+``tempfile.TemporaryDirectory``, which typically lies inside ``/tmp``. To use a
+different folder, use the ``--workdir`` flag.
 
-The temporary folder will at some point of the run contain a local copy of 
+The temporary folder will at some point of the run contain a local copy of
 the gene cluster sequences in FASTA 2-line format for use by MMSeqs2, so it
 needs to be large enough to accomodate all sequences. This may be a problem
-for some systems where ``/tmp`` is generally small. If you run out of 
+for some systems where ``/tmp`` is generally small. If you run out of
 storage space, consider setting ``--workdir`` to another location with more
 storage available.
 
@@ -104,7 +104,7 @@ storage available.
 Tuning IGUA
 -----------
 
-IGUA can be configured in many ways that are not shown by default. To see 
+IGUA can be configured in many ways that are not shown by default. To see
 all parameters of IGUA, run it with the ``--help-all`` flag:
 
 .. code:: console
@@ -116,7 +116,7 @@ Nucleotide deduplication and clustering
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The first two stages of IGUA rely on using MMSeqs with parameters that have been
-tuned during IGUA's development. Nevertheless, they can be modified with 
+tuned during IGUA's development. Nevertheless, they can be modified with
 the various ``--dedup-*`` and ``--nuc-*`` flags of the command line if more
 control is desired.
 
@@ -124,38 +124,74 @@ control is desired.
 Protein composition clustering
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-By default, the protein composition clustering step of IGUA will use 
+By default, the protein composition clustering step of IGUA will use
 hierarchical clustering with **average** linkage clustering and a relative
-distance threshold of :math:`0.8`, which corresponds to clusters indide a 
+distance threshold of :math:`0.8`, which corresponds to clusters indide a
 GCF having at most 20% of esimtated difference at the amino-acid level. These
-two options can be changed with the ``--clustering-method`` and 
-``--clustering-distance`` flags. 
+two options can be changed with the ``--clustering-method`` and
+``--clustering-distance`` flags.
 
 The pairwise distance matrix is computed using a weighted Manhattan distance
 for sparse matrices. By default, the weight of each protein corresponds to its
-length in amino-acids, which means larger proteins influence the distance 
+length in amino-acids, which means larger proteins influence the distance
 more. This may not be desired in cases where small proteins may have a higher
-functional importance (e.g. precursor peptides in RiPP BGCs), and can be 
+functional importance (e.g. precursor peptides in RiPP BGCs), and can be
 turned of with the ``--no-clustering-weight`` option if desired.
 
 Additionally, the precision of the pairwise distance matrix used for the clustering
 can be lowered to reduce memory usage, using ``single`` or ``half`` precision
-float point numbers instead of the ``double`` precision used by default. Use the 
-``--clustering-precision`` flag to control numerical precision. *Note that 
+float point numbers instead of the ``double`` precision used by default. Use the
+``--clustering-precision`` flag to control numerical precision. *Note that
 half-precision may lead to very degraded accuracy of the clustering*.
 
 
-Input types
------------
+Running on different inputs
+---------------------------
 
 AntiSMASH
 ^^^^^^^^^
 
-IGUA supports antiSMASH clusters either inside a GenBank file or in 
+IGUA supports antiSMASH clusters either inside a GenBank file or in
 a Zip archive, using the ``--antismash-gbk`` and ``--antismash-zip``
 input flags respectively:
 
 .. code:: console
 
     $ igua --antismash-gbk regions.gbk --antismash-zip regions.zip ...
+
+DefenseFinder
+^^^^^^^^^^^^^
+
+IGUA can be run on gene clusters obtained with `DefenseFinder <https://github.com/mdmparis/defense-finder>`_
+with a dedicated dataset input. This will parse the DefenseFinder outputs
+``***_defense_finder_systems.tsv`` to extract the gene clusters and their
+corresponding protein sequences:
+
+.. code:: console
+
+    $ igua --defense-finder-tsv metadata.tsv ...
+
+To be able to locate the various files required by IGUA, a TSV file must be
+given with the following columns for each sample:
+
+``genome_id``: (optional)
+    The unique identifier for each genome/metagenome/strain/sample. By default,
+    the row index will be used (*e.g.* ``genome_0000001``)
+
+``defense_systems_tsv``
+    The path to the ``***_defense_finder.tsv`` file produced by DefenseFinder
+    for the sample.
+
+``gff_file``
+    Path to the GFF file for the genome
+
+``genome_fasta_file``
+    Path to the genome FASTA file.
+
+``protein_fasta_file``
+    Path to the protein FASTA file.
+
+``activity``: (optional)
+    Filter gene clusters by activity (``defense`` or ``antidefense``).
+
 
