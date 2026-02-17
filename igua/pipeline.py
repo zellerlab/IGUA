@@ -157,6 +157,33 @@ class Pipeline:
         progress: typing.Optional[rich.progress.Progress] = None,
         workdir: typing.Optional[pathlib.Path] = None,
     ):
+        """Create a new pipeline.
+
+        Arguments:
+            strategy (`ClusteringStrategy` or `None`): The clustering
+                strategy to use to form the final clusters using the
+                protein compositions in the stage 3 of the pipeline.
+                Pass `None` to disable the stage 3 altogether.
+            params (`PipelineParameters` or `None`): An object with
+                parameters to pass to MMseqs2 for each stages of the
+                pipeline.
+            prefix (`str`): The prefix to use for the GCF identifiers.
+            jobs (`int`): The number of threads to use with MMseqs2 and
+                the distance computation in stage 3.
+            weight (`str` or `None`): How to weight dimensions in the
+                protein composition matrix. Use `protein` to weigh by
+                protein length, or `None` to disable weighting.
+            mmseqs (`~igua.mmseqs.MMseqs`): The MMSeqs2 driver to use
+                to conduct linear clustering in stages 1 and 2 and
+                protein clustering in stage 3.
+            progress (`~rich.progress.Progress` or `None`): A `rich`
+                progress object to use for reporting progress.
+            workdir (`pathlib.Path` or `None`): The path to a folder
+                to use for temporary files. If `None` given, generates
+                a temporary folder with `tempfile.TemporaryDirectory`
+                on each `~Pipeline.run` invokation.
+
+        """
         self.jobs = jobs
         self.params = params or PipelineParameters.default()
         self.workdir = None if workdir is None else pathlib.Path(workdir)
@@ -180,7 +207,7 @@ class Pipeline:
                 raise TypeError(f"expected ClusteringStrategy, got {type(strategy).__name__}")
             self.clustering_strategy = copy.deepcopy(strategy)
             self.clustering_strategy.jobs = self.jobs
-        
+
     # ---
 
     def _extract_clusters_to_file(
@@ -191,7 +218,7 @@ class Pipeline:
         """Extract the dataset clusters to the given file.
 
         Arguments:
-            dataset (`~igua.dataset.base.BaseDataset`): The dataset 
+            dataset (`~igua.dataset.base.BaseDataset`): The dataset
                 containing the gene clusters to extract.
             output (`pathlib.Path`): The path to the output file to
                 write the gene clusters sequence to.
