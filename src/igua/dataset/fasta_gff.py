@@ -11,8 +11,7 @@ import uuid
 from dataclasses import asdict, dataclass
 
 import Bio.SeqIO
-import pandas as pd
-import polars as pl
+import pandas
 import rich.progress
 from rich.console import Console
 
@@ -355,7 +354,7 @@ class GenomeContext:
         genome_fasta: pathlib.Path,
         protein_fasta: pathlib.Path,
         column_mapping: typing.Dict[str, str],
-        system_loader: typing.Callable[[pathlib.Path, Console], pl.DataFrame],
+        system_loader: typing.Callable[[pathlib.Path, Console], pandas.DataFrame],
     ):
         """Initialize genome context.
 
@@ -415,7 +414,7 @@ class GenomeResources:
         """
         self.context = context
         self.console = console
-        self._cluster_df: typing.Optional[pl.DataFrame] = None
+        self._cluster_df: typing.Optional[pandas.DataFrame] = None
         self._protein_idx: typing.Optional[ProteinIndex] = None
         self._gff_db: typing.Optional[GFFIndex] = None
         self._coordinates_cache: typing.Optional[typing.List[SystemCoordinates]] = None
@@ -431,7 +430,7 @@ class GenomeResources:
         return False
 
     @property
-    def cluster_df(self) -> pl.DataFrame:
+    def cluster_df(self) -> pandas.DataFrame:
         """Load and filter clusters TSV.
 
         Returns:
@@ -445,24 +444,33 @@ class GenomeResources:
         col_map = self.context.column_mapping
         cluster_col = col_map["cluster_id"]
 
-        if (
-            n_dup := df.filter(pl.col(cluster_col).is_duplicated())
-            .select(cluster_col)
-            .unique()
-            .height
-        ) > 0:
-            dup_ids = (
-                df.filter(pl.col(cluster_col).is_duplicated())
-                .select(cluster_col)
-                .unique()
-                .to_series()
-                .to_list()
-            )
+        dup = df.duplicated(cluster_col)
+        n_dup = dup.sum()
+        if n_dup > 0:
+            dup_ids = df[dup][cluster_col]
             self.console.print(
                 f"[bold yellow]{'Warning':>12}[/] {n_dup} duplicate cluster/s in [bold cyan]{self.context.genome_id}[/]: "
                 f"[cyan]{', '.join(dup_ids[:5])}{'...' if n_dup > 5 else ''}[/]"
             )
-            df = df.unique(subset=[cluster_col], keep="first")
+        # if (
+        #     n_dup := df.filter(pl.col(cluster_col).is_duplicated())
+        #     .select(cluster_col)
+        #     .unique()
+        #     .height
+        # ) > 0:
+        #     dup_ids = (
+        #         df.filter(pl.col(cluster_col).is_duplicated())
+        #         .select(cluster_col)
+        #         .unique()
+        #         .to_series()
+        #         .to_list()
+        #     )
+        #     self.console.print(
+        #         f"[bold yellow]{'Warning':>12}[/] {n_dup} duplicate cluster/s in [bold cyan]{self.context.genome_id}[/]: "
+        #         f"[cyan]{', '.join(dup_ids[:5])}{'...' if n_dup > 5 else ''}[/]"
+        #     )
+        #     df = df.unique(subset=[cluster_col], keep="first")
+            df = df[~dup]
 
         self._cluster_df = df
         return self._cluster_df
@@ -509,7 +517,7 @@ class GenomeResources:
             List of SystemCoordinates for each cluster.
         """
         coordinates = []
-        for row in self.cluster_df.iter_rows(named=True):
+        for row in self.cluster_df.itertuples():
             coord = self._parse_system_coordinates(row)
             coordinates.append(coord)
         return coordinates
@@ -526,10 +534,10 @@ class GenomeResources:
             SystemCoordinates instance.
         """
         col_map = self.context.column_mapping
-        cluster_id = row[col_map["cluster_id"]]
+        cluster_id = getattr(row, col_map['cluster_id'])
 
-        sys_beg_gene = row.get(col_map["start_gene"])
-        sys_end_gene = row.get(col_map["end_gene"])
+        sys_beg_gene = getattr(row, col_map['start_gene'])
+        sys_end_gene = getattr(row, col_map['end_gene'])
 
         if sys_beg_gene is None or sys_end_gene is None:
             return self._invalid_coord(
@@ -541,7 +549,7 @@ class GenomeResources:
         try:
             gene_list = [
                 g.strip()
-                for g in str(row[col_map["genes_in_cluster"]]).split(",")
+                for g in str(getattr(row, col_map["genes_in_cluster"])).split(",")
                 if g.strip()
             ]
         except (KeyError, AttributeError):
@@ -815,17 +823,17 @@ class FastaGFFDataset(BaseDataset):
         """
         return GenomeContext(
             genome_id=genome_id,
-            cluster_tsv=pathlib.Path(row["cluster_tsv"]),
-            gff_file=pathlib.Path(row["gff_file"]),
-            genome_fasta=pathlib.Path(row["genome_fasta_file"]),
-            protein_fasta=pathlib.Path(row["protein_fasta_file"]),
+            cluster_tsv=pathlib.Path(row.cluster_tsv),
+            gff_file=pathlib.Path(row.gff_file),
+            genome_fasta=pathlib.Path(row.genome_fasta_file),
+            protein_fasta=pathlib.Path(row.protein_fasta_file),
             column_mapping=self.column_mapping,
             system_loader=self._load_and_filter_systems,
         )
 
     def _load_and_filter_systems(
         self, tsv_path: pathlib.Path, console: Console
-    ) -> pl.DataFrame:
+    ) -> pandas.DataFrame:
         """Load systems TSV file.
 
         Args:
@@ -835,7 +843,7 @@ class FastaGFFDataset(BaseDataset):
         Returns:
             Polars DataFrame with system data.
         """
-        df = pl.read_csv(tsv_path, separator="\t")
+        df = pandas.read_csv(tsv_path, sep="\t")
         return df
 
     def extract_clusters(
@@ -846,7 +854,7 @@ class FastaGFFDataset(BaseDataset):
             f"[bold blue]{'Using':>12}[/] cluster metadata file: [magenta]{self.cluster_metadata}[/]"
         )
 
-        df = pl.read_csv(self.cluster_metadata, separator="\t")
+        df = pandas.read_csv(self.cluster_metadata, sep="\t")
 
         results = []
 
@@ -855,8 +863,8 @@ class FastaGFFDataset(BaseDataset):
             f"[bold blue]{'Processing':>9}[/] gene clusters", total=len(df)
         )
 
-        for row in df.iter_rows(named=True):
-            genome_id = row.get("genome_id") or f"genome_{genome_count:07}"
+        for row in df.itertuples():
+            genome_id = getattr(row, "genome_id", f"genome_{genome_count:07}")
             genome_count += 1
             progress.update(
                 task,
@@ -922,14 +930,16 @@ class FastaGFFDataset(BaseDataset):
         cluster_ids: typing.Container[str],
     ) -> typing.Dict[str, int]:
 
-        df = pl.read_csv(self.cluster_metadata, separator="\t")
+        df = pandas.read_csv(self.cluster_metadata, sep="\t")
 
+        genome_count = 0
         task = progress.add_task(
             f"[bold blue]{'Processing':>9}[/] protein sequences", total=len(df)
         )
 
-        for row in df.iter_rows(named=True):
-            genome_id = row.get("genome_id") or f"genome_{0:07}"
+        for row in df.itertuples():
+            genome_id = getattr(row, "genome_id", f"genome_{genome_count:07}")
+            genome_count += 1
             progress.update(
                 task,
                 description=f"[bold blue]{'Processing':>9}[/] genome: [bold cyan]{genome_id}",

@@ -1,7 +1,7 @@
 import pathlib
 import typing
 
-import polars as pl
+import pandas
 from rich.console import Console
 
 from .fasta_gff import FastaGFFDataset
@@ -34,7 +34,7 @@ class DefenseFinderDataset(FastaGFFDataset):
 
     def _load_and_filter_systems(
         self, tsv_path: pathlib.Path, console: Console
-    ) -> pl.DataFrame:
+    ) -> pandas.DataFrame:
         """Load DefenseFinder systems with activity filtering.
         
         Args:
@@ -44,15 +44,14 @@ class DefenseFinderDataset(FastaGFFDataset):
         Returns:
             Filtered Polars DataFrame containing system data.
         """
-        df = pl.read_csv(tsv_path, separator="\t")
+        df = pandas.read_csv(tsv_path, sep="\t")
         original_count = len(df)
 
         if self.activity_filter.lower() != "all":
             if "activity" in df.columns:
-                df = df.filter(
-                    pl.col("activity").str.to_lowercase()
-                    == self.activity_filter.lower()
-                )
+                df = df[
+                    df["activity"].str.lower() == self.activity_filter.lower()
+                ]
                 console.print(
                     f"[bold green]{'Filtered':>12}[/] {original_count} → {len(df)} "
                     f"([bold cyan]{self.activity_filter}[/] only)"

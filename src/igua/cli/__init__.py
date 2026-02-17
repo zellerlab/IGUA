@@ -39,6 +39,7 @@ from .inputs import (
     GenBankListInput, 
     AntiSMASHGenBankInput, 
     AntiSMASHZipInput,
+    DefenseFinderTSV,
 )
 
 
@@ -136,6 +137,15 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         dest="inputs",
         action="append",
         type=AntiSMASHZipInput,
+        default=[],
+    )
+    group_input.add_argument(
+        "--defense-finder-tsv",
+        help="Input path to TSV metadata file for DefenseFinder predictions.",
+        metavar="FILE",
+        dest="inputs",
+        action="append",
+        type=DefenseFinderTSV,
         default=[],
     )
 
