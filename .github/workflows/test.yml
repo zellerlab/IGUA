@@ -46,8 +46,8 @@ jobs:
       run: sh ./misc/download-mmseqs.sh /usr/local/bin
     - name: Download test data
       run: "wget 'https://dl.secondarymetabolites.org/mibig/mibig_gbk_3.1.tar.gz' -O- | tar xzO --wildcards \\*.gbk > mibig3.gbk"
-    - name: Test Rust extension
-      run: igua -i mibig3.gbk -o mibig3.tsv
+    - name: Test run
+      run: igua -g mibig3.gbk -o mibig3.tsv
 
   test_osx:
     name: Test (OSX, x86-64)
@@ -89,8 +89,8 @@ jobs:
       run: sh ./misc/download-mmseqs.sh /usr/local/bin
     - name: Download test data
       run: "wget 'https://dl.secondarymetabolites.org/mibig/mibig_gbk_3.1.tar.gz' -O- | tar xzO \\*.gbk > mibig3.gbk"
-    - name: Test Rust extension
-      run: igua -i mibig3.gbk -o mibig3.tsv
+    - name: Test run
+      run: igua -g mibig3.gbk -o mibig3.tsv
 
   # coverage:
   #   name: Coverage
