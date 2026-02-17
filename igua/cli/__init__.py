@@ -23,9 +23,9 @@ except ImportError as err:
     argcomplete = err
 
 try:
-    from rich_argparse import RichHelpFormatter as HelpFormatter
+    from rich_argparse import ArgumentDefaultsRichHelpFormatter as HelpFormatter
 except ImportError:
-    from argparse import HelpFormatter
+    from argparse import ArgumentDefaultsHelpFormatter as HelpFormatter
 
 from .. import __version__
 from ..dataset.base import BaseDataset
@@ -145,7 +145,7 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
     group_output.add_argument(
         "-o",
         "--output",
-        help="The name of the output file to generate.",
+        help="The name of the output table to generate.",
         default=pathlib.Path("gcfs.tsv"),
         type=pathlib.Path,
     )
