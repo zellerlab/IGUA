@@ -169,7 +169,7 @@ of cluster IDs from which to extract proteins from.
                         seq = str(record.seq[gene_row.start-1:gene_row.end].translate())
                         yield Protein(
                             id=gene_row.protein_id,
-                            sequence=,
+                            sequence=seq,
                             cluster_id=cluster_row.cluster_id,
                         )
 
