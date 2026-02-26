@@ -169,43 +169,43 @@ jobs:
       with:
         github-token: '${{ secrets.GITHUB_TOKEN }}'
 
-  # aur:
-  #   environment: Arch Linux User Repository
-  #   runs-on: ubuntu-latest
-  #   if: "!contains(github.ref, 'rc')"
-  #   name: Update AUR package
-  #   needs:
-  #   - upload
-  #   - sdist
-  #   steps:
-  #   - uses: actions/checkout@v4
-  #     with:
-  #       submodules: true
-  #   - name: Set up Python 3.12
-  #     uses: actions/setup-python@v5
-  #     with:
-  #       python-version: '3.12'
-  #   - name: Install build dependencies
-  #     run: pip install setuptools-rust
-  #   - name: Download source distribution
-  #     uses: actions/download-artifact@v4
-  #     with:
-  #       name: sdist
-  #       path: dist/
-  #       merge-multiple: true
-  #   - name: Extract package version
-  #     run: echo PKGVER=$(echo ${{ github.ref }} | cut -dv -f2) >> $GITHUB_ENV
-  #   - name: Compute SHA256 of source distribution
-  #     run: echo SHA256=$(sha256sum dist/igua-${{ env.PKGVER }}.tar.gz | cut -f1 -d' ') >> $GITHUB_ENV
-  #   - name: Generate PKGBUILD
-  #     run: sed -e "s/%pkgver/${{ env.PKGVER }}/g" -e "s/%sha256sum/${{ env.SHA256 }}/g" pkg/aur/PKGBUILD.in > pkg/aur/PKGBUILD
-  #   - name: Update package
-  #     uses: KSXGitHub/github-actions-deploy-aur@v2.7.2
-  #     if: "startsWith(github.ref, 'refs/tags/v')"
-  #     with:
-  #       pkgname: python-igua
-  #       pkgbuild: pkg/aur/PKGBUILD
-  #       commit_username: ${{ secrets.AUR_USER }}
-  #       commit_email: ${{ secrets.AUR_EMAIL }}
-  #       ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-  #       commit_message: ${{ github.event.head_commit.message }}
+  aur:
+    environment: Arch Linux User Repository
+    runs-on: ubuntu-latest
+    if: "!contains(github.ref, 'rc')"
+    name: Update AUR package
+    needs:
+    - upload
+    - sdist
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install build dependencies
+      run: pip install setuptools-rust
+    - name: Download source distribution
+      uses: actions/download-artifact@v4
+      with:
+        name: sdist
+        path: dist/
+        merge-multiple: true
+    - name: Extract package version
+      run: echo PKGVER=$(echo ${{ github.ref }} | cut -dv -f2) >> $GITHUB_ENV
+    - name: Compute SHA256 of source distribution
+      run: echo SHA256=$(sha256sum dist/igua-${{ env.PKGVER }}.tar.gz | cut -f1 -d' ') >> $GITHUB_ENV
+    - name: Generate PKGBUILD
+      run: sed -e "s/%pkgver/${{ env.PKGVER }}/g" -e "s/%sha256sum/${{ env.SHA256 }}/g" pkg/aur/PKGBUILD.in > pkg/aur/PKGBUILD
+    - name: Update package
+      uses: KSXGitHub/github-actions-deploy-aur@v2.7.2
+      if: "startsWith(github.ref, 'refs/tags/v')"
+      with:
+        pkgname: igua
+        pkgbuild: pkg/aur/PKGBUILD
+        commit_username: ${{ secrets.AUR_USER }}
+        commit_email: ${{ secrets.AUR_EMAIL }}
+        ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        commit_message: ${{ github.event.head_commit.message }}
