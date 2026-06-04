@@ -1,7 +1,8 @@
 [package]
-name = "igua-hca"
+name = "igua"
 edition = "2021"
 publish = false
+version = "0.2.0"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
