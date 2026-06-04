@@ -1,3 +1,4 @@
+import abc
 import argparse
 import pathlib
 import typing
@@ -6,16 +7,21 @@ from ..dataset.base import BaseDataset
 from ..dataset.genbank import GenBankDataset
 from ..dataset.antismash import AntiSMASHGenBankDataset, AntiSMASHZipDataset
 from ..dataset.defensefinder import DefenseFinderDataset
+from ..dataset.list import DatasetList
 
 
-class BaseInput:
-    
+class BaseInput(abc.ABC):
+
     def __init__(self, filename: str):
         self.filename = filename
 
+    @abc.abstractmethod
+    def to_dataset(self, args: argparse.Namespace) -> BaseDataset:
+        pass
+
 
 class GenBankInput(BaseInput):
-    
+
     def __init__(self, filename: str):
         self.filename = pathlib.Path(filename)
 
