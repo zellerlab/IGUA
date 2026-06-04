@@ -6,7 +6,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 
 ## [Unreleased]
-[Unreleased]: https://github.com/zellerlab/IGUA/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/zellerlab/IGUA/compare/v0.2.1...HEAD
+
+
+## [v0.2.1] - 2026-06-04
+[v0.2.1]: https://github.com/zellerlab/IGUA/compare/v0.2.0...v0.2.1
+
+### Fixed
+- Missing import in `igua.cli.inputs` module ([#3](https://github.com/zellerlab/IGUA/issues/3)).
+
+### Changed
+- Update `pyo3` to `v0.28.3`.
+- Relax `gb-io` dependency to support `v0.4`.
 
 
 ## [v0.2.0] - 2026-02-17

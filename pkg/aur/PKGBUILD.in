@@ -3,7 +3,7 @@
 _name=igua
 pkgname=${_name}
 pkgver=%pkgver
-_version=${pkgver}.post1
+_version=${pkgver}
 pkgrel=1
 pkgdesc="Iterative Gene clUster Analysis, a high-throughput method for gene cluster family identification."
 url="https://github.com/zellerlab/IGUA"
