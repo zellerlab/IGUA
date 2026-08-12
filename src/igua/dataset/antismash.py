@@ -19,13 +19,13 @@ def _extract_clusters_from_record(
     source: str,
 ) -> typing.Iterable[Cluster]:
     for region in filter(lambda feat: feat.kind == "region", record.features):
-        start = region.location.start
+        start = max(region.location.start - 1, 0)
         end = region.location.end
         number = next(q.value for q in region.qualifiers if q.key == "region_number")
         region_id = f"{record.name}.region{number:>03}"
         yield Cluster(
             id=region_id,
-            sequence=record.sequence[start-1:end].decode('ascii'),
+            sequence=record.sequence[start:end].decode('ascii'),
             source=source,
         )
 
