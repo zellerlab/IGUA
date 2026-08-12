@@ -6,7 +6,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 
 ## [Unreleased]
-[Unreleased]: https://github.com/zellerlab/IGUA/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/zellerlab/IGUA/compare/v0.2.2...HEAD
+
+
+## [v0.2.2] - 2026-08-12
+[v0.2.2]: https://github.com/zellerlab/IGUA/compare/v0.2.1...v0.2.2
+
+### Fixed
+- Incorrect cluster length extraction for antiSMASH GenBank datasets ([#5](https://github.com/zellerlab/IGUA/issues/5)).
 
 
 ## [v0.2.1] - 2026-06-04
