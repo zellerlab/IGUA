@@ -38,7 +38,9 @@ from .inputs import (
     GenBankInput, 
     GenBankListInput, 
     AntiSMASHGenBankInput, 
+    AntiSMASHGenBankListInput, 
     AntiSMASHZipInput,
+    AntiSMASHZipListInput,
     DefenseFinderTSV,
 )
 
@@ -131,12 +133,30 @@ def build_parser(argv: typing.List[str]) -> argparse.ArgumentParser:
         default=[],
     )
     group_input.add_argument(
+        "--antismash-gbk-list",
+        help="Input path to a file containing a list of antiSMASH GenBank files.",
+        metavar="FILE",
+        dest="inputs",
+        action="append",
+        type=AntiSMASHGenBankListInput,
+        default=[],
+    )
+    group_input.add_argument(
         "--antismash-zip",
         help="Input path to Zip files containing antiSMASH predictions.",
         metavar="FILE",
         dest="inputs",
         action="append",
         type=AntiSMASHZipInput,
+        default=[],
+    )
+    group_input.add_argument(
+        "--antismash-zip-list",
+        help="Input path to a file containing a list of antiSMASH Zip files.",
+        metavar="FILE",
+        dest="inputs",
+        action="append",
+        type=AntiSMASHZipListInput,
         default=[],
     )
     group_input.add_argument(
