@@ -6,7 +6,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 
 ## [Unreleased]
-[Unreleased]: https://github.com/zellerlab/IGUA/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/zellerlab/IGUA/compare/v0.2.3...HEAD
+
+
+## [v0.2.3] - 2026-08-19
+[v0.2.3]: https://github.com/zellerlab/IGUA/compare/v0.2.2...v0.2.3
+
+### Added
+- `--antismash-gbk-list` and `--antismash-zip-list` input options to pass a list of filenames.
 
 
 ## [v0.2.2] - 2026-08-12
