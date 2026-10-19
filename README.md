@@ -17,7 +17,7 @@
 [![Docs](https://img.shields.io/readthedocs/igua/latest?style=flat-square&maxAge=600)](https://igua.readthedocs.io)
 [![Changelog](https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square)](https://github.com/zellerlab/IGUA/blob/master/CHANGELOG.md)
 [![Downloads](https://img.shields.io/pypi/dm/igua?style=flat-square&color=303f9f&maxAge=86400&label=downloads)](https://pepy.tech/project/igua)
-[![Preprint](https://img.shields.io/badge/preprint-bioRxiv-darkblue?style=flat-square&maxAge=2678400)](https://www.biorxiv.org/content/10.1101/2025.05.15.654203v1)
+[![Paper](https://img.shields.io/badge/paper-nar%2Fgkag975-darkblue?style=flat-square&maxAge=2678400)](https://doi.org/10.1093/nar/gkag975)
 
 
 ## 🗺️ Overview
@@ -137,6 +137,12 @@ Additionally, the precision of the distance matrix used for the clustering can
 be lowered to reduce memory usage, using `single` or `half` precision floating
 point numbers instead of the `double` precision used by default. Use the
 `--clustering-precision` flag to control numerical precision.
+
+## 🔖 Citation
+
+IGUA is scientific software, with a [published paper](https://academic.oup.com/nar/article/54/19/gkag975/8913153) 
+in [Nucleic Acids Research (NAR)](https://academic.oup.com/nar).
+Please cite IGUA if you are using it in an academic work.
 
 ## 💭 Feedback
 

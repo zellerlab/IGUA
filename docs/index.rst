@@ -12,7 +12,7 @@ IGUA |Stars|
 
 *Iterative Gene clUster Analysis, a fast and flexible gene cluster family delineation method.*
 
-|Actions| |Coverage| |PyPI| |Bioconda| |AUR| |Wheel| |Versions| |Implementations| |License| |Source| |Mirror| |Issues| |Docs| |Changelog| |Downloads| |Preprint|
+|Actions| |Coverage| |PyPI| |Bioconda| |AUR| |Wheel| |Versions| |Implementations| |License| |Source| |Mirror| |Issues| |Docs| |Changelog| |Downloads| |Paper|
 
 
 .. |Actions| image:: https://img.shields.io/github/actions/workflow/status/zellerlab/IGUA/test.yml?branch=main&logo=github&style=flat-square&maxAge=300
@@ -60,8 +60,8 @@ IGUA |Stars|
 .. |Downloads| image:: https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fpepy.tech%2Fprojects%2FIGUA&search=%5B0-9%5D%2B.%5B0-9%5D%2B(k%7CM)&style=flat-square&label=downloads&color=303f9f&cacheSeconds=86400
    :target: https://pepy.tech/project/IGUA
 
-.. |Preprint| image:: https://img.shields.io/badge/preprint-bioRxiv-darkblue?style=flat-square&maxAge=2678400
-   :target: https://www.biorxiv.org/content/10.1101/2025.05.15.654203v1
+.. |Paper| image:: https://img.shields.io/badge/paper-nar%2Fgkag975-darkblue?style=flat-square&maxAge=2678400
+   :target: https://doi.org/10.1093/nar/gkag975
 
 
 Overview

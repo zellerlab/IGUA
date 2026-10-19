@@ -20,6 +20,13 @@ authors:
     family-names: Gourlé
     affiliation: Umea University
     orcid: https://orcid.org/0000-0001-9807-1082
+  - given-names: Hale-Seda
+    family-names: Radoykova
+    affiliation: Ecole Polytechnique Federale de Lausanne
+  - given-names: Lucas
+    family-names: Paoli
+    affiliation: Ecole Polytechnique Federale de Lausanne
+    orcid: https://orcid.org/0000-0003-0771-8309
   - given-names: Laura M.
     family-names: Carroll
     orcid: https://orcid.org/0000-0002-3677-0192
@@ -34,32 +41,31 @@ identifiers:
     description: bioRxiv preprint
 repository-code: 'https://github.com/zellerlab/IGUA'
 abstract: >-
-  Prokaryotic genomes harbor a variety of functional elements encoded as 
-  contiguous multi-gene clusters, with biosynthetic gene clusters (BGCs, 
-  genetic determinants of secondary metabolite biosynthesis) serving as a 
-  notable example. In a typical workflow, BGCs are clustered into Gene Cluster 
-  Families (GCFs), units that group BGCs encoding similar biosynthetic pathways 
-  together. However, existing methods cannot readily scale to massive datasets and 
-  cannot be used for GCF delineation tasks beyond BGC clustering. Here, we present 
-  IGUA (Iterative Gene clUster Analysis; https://github.com/zellerlab/IGUA), a 
-  scalable, flexible GCF delineation method for genomic segments with multi-gene 
-  architectures. On a BGC clustering task, IGUA is ≥10x faster than the 
-  state-of-the-art (BiG-SCAPE/BiG-SLiCE), without sacrificing accuracy. To 
-  highlight its scalability, we use IGUA to cluster >2.8 million BGCs from ≈1 
-  million prokaryotic genomes in <18 hours (n = 2,829,071 BGCs to 56,960 GCFs). 
-  To showcase its utility beyond BGC clustering, we use IGUA to cluster (i) 
-  secretion systems and (ii) prophages into GCFs (n = 10,576 and 356,776 gene 
-  clusters to 2,744 and 213,699 GCFs, respectively). Overall, IGUA represents a 
-  versatile GCF delineation tool with unmatched computational efficiency and 
-  flexibility, enabling (meta)genomic mining applications at unprecedented 
-  scales.
+  Prokaryotic genomes harbor a variety of functional elements encoded as
+  contiguous multi-gene clusters. To identify homologous gene clusters,
+  computational tools that account for multi-gene architectures are needed to
+  group gene clusters into Gene Cluster Families (GCFs). However, existing GCF
+  delineation methods do not scale well to large datasets and are often limited
+  to certain subclasses of gene clusters. Here, we present IGUA (Iterative Gene
+  clUster Analysis; https://github.com/zellerlab/IGUA), a scalable, flexible
+  GCF delineation method for genomic segments with multi-gene architectures.
+  On a biosynthetic gene cluster (BGC) clustering task, IGUA is 29x and 10x
+  faster than the state-of-the-art (BiG-SCAPE v2 and BiG-SLiCE v2, respectively;
+  28 CPUs), without sacrificing accuracy. To highlight its scalability, we use
+  IGUA to cluster >2.8 million BGCs from ≈1 million prokaryotic genomes in
+  <18 h (n = 2 829 071 BGCs to 56 960 GCFs). To showcase its utility beyond
+  BGC clustering, we use IGUA to cluster five additional prokaryotic gene
+  cluster types (secretion systems, prophages, genomic islands, phage-plasmids,
+  and carbohydrate active enzyme [CAZyme] gene clusters). Overall, IGUA
+  represents a versatile GCF delineation tool with unmatched computational
+  efficiency and flexibility, enabling (meta)genomic mining applications at
+  unprecedented scales.
 keywords:
   - gene cluster family
   - biosynthetic gene cluster
 license: GPL-3.0-or-later
 preferred-citation:
   type: article
-  status: preprint
   authors:
   - given-names: Martin
     family-names: Larralde
@@ -74,6 +80,13 @@ preferred-citation:
     family-names: Gourlé
     affiliation: Umea University
     orcid: https://orcid.org/0000-0001-9807-1082
+  - given-names: Hale-Seda
+    family-names: Radoykova
+    affiliation: Ecole Polytechnique Federale de Lausanne
+  - given-names: Lucas
+    family-names: Paoli
+    affiliation: Ecole Polytechnique Federale de Lausanne
+    orcid: https://orcid.org/0000-0003-0771-8309
   - given-names: Laura M.
     family-names: Carroll
     orcid: https://orcid.org/0000-0002-3677-0192
@@ -82,9 +95,12 @@ preferred-citation:
     family-names: Zeller
     affiliation: European Molecular Biology Laboratory
     orcid: https://orcid.org/0000-0003-1429-7485
-  doi: "10.1101/2025.03.13.642868"
-  journal: "bioRxiv"
-  month: 5
+  doi: "10.1093/nar/gkag975"
+  journal: "Nucleic Acids Research"
+  issue: 19
+  month: 10
+  pmcid: PMC13659240
   title: "Fast, flexible gene cluster family delineation with IGUA"
-  year: 2025
+  volume: 54
+  year: 2026
 
